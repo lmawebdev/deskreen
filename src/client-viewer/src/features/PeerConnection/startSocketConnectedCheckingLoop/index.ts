@@ -1,5 +1,5 @@
-import PeerConnection from '..';
 import { ErrorMessage } from '../../../components/ErrorDialog/ErrorMessageEnum';
+import PeerConnection from '..';
 import setAndShowErrorDialogMessage from '../setAndShowErrorDialogMessage';
 
 export default (peerConnection: PeerConnection): NodeJS.Timeout => {

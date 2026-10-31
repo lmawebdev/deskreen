@@ -1,15 +1,9 @@
 import { IpcEvents } from '../../../../common/IpcEvents.enum';
-import NullSimplePeer from './NullSimplePeer';
-import NullUser from './NullUser';
 
 export default function handleSelfDestroy(
 	peerConnection: PeerConnection,
 ): void {
-	peerConnection.partner = NullUser;
-	window.electron.ipcRenderer.invoke(
-		IpcEvents.DisconnectDeviceById,
-		peerConnection.partnerDeviceDetails.id,
-	);
+	peerConnection.destroyAllPartners(false);
 
 	// remove window event listener
 	if (peerConnection.beforeunloadHandler) {
@@ -20,25 +14,8 @@ export default function handleSelfDestroy(
 		peerConnection.beforeunloadHandler = null;
 	}
 
-	// cleanup peer connection and remove all event listeners
-	if (peerConnection.peer !== NullSimplePeer) {
-		try {
-			// remove all event listeners before destroying
-			peerConnection.peer.removeAllListeners();
-			peerConnection.peer.destroy();
-		} catch (error) {
-			console.error('Error destroying peer:', error);
-		}
-		peerConnection.peer = NullSimplePeer;
-	}
-
-	// cleanup media stream
-	if (peerConnection.localStream) {
-		peerConnection.localStream.getTracks().forEach((track) => {
-			track.stop();
-		});
-		peerConnection.localStream = null;
-	}
+	// cleanup shared media stream once all peers are gone
+	peerConnection.stopLocalStream();
 
 	// cleanup socket
 	peerConnection.socket.removeAllListeners();
@@ -51,7 +28,7 @@ export default function handleSelfDestroy(
 	peerConnection.onDeviceConnectedCallback = () => {
 		// reset callback after destruction
 	};
-	peerConnection.isCallStarted = false;
+	peerConnection.hasStartedSharing = false;
 
 	window.electron.ipcRenderer.invoke(
 		IpcEvents.UnmarkRoomIDAsTaken,

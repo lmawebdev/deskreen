@@ -1,17 +1,19 @@
 export default (
 	peerConnection: PeerConnection,
-	payload: { users: PartnerPeerUser[] },
+	payload: { users: PartnerPeerUser[]; ownerUsername?: string },
 ): void => {
-	const filteredPartner = payload.users.filter((user: PartnerPeerUser) => {
-		return peerConnection.user.username !== user.username;
-	});
+	const users = payload.users || [];
 
-	if (filteredPartner[0] === undefined) return;
+	for (const user of users) {
+		if (user.username === peerConnection.user.username) continue;
+		// Only non-owner sockets are viewers. A stale owner entry must never
+		// become a partner.
+		if (user.isOwner) continue;
 
-	[peerConnection.partner] = filteredPartner;
-
-	if (peerConnection.partner.username !== '') {
-		peerConnection.toggleLockRoom(true);
-		peerConnection.emitUserEnter();
+		const partner = peerConnection.ensurePartner(user.username);
+		partner.socketId = user.socketId;
 	}
+
+	const usernames = new Set(users.map((user) => user.username));
+	peerConnection.removePartnersNotIn(usernames);
 };

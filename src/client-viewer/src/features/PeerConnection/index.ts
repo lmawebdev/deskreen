@@ -1,33 +1,33 @@
 import shortId from 'shortid';
 import SimplePeer from 'simple-peer';
-import { UAParser } from 'ua-parser-js';
 import type { Socket } from 'socket.io-client';
+import { UAParser } from 'ua-parser-js';
 import type { LocalPeerUser } from '../../../../common/LocalPeerUser';
 import type { SendEncryptedMessagePayload } from '../../../../common/SendEncryptedMessagePayload';
-import { connect as connectSocket } from '../../utils/socket';
+import { ErrorMessage } from '../../components/ErrorDialog/ErrorMessageEnum';
+import { VIDEO_QUALITY_TO_DECIMAL } from './../../constants/appConstants';
 import {
-	prepare as prepareMessage,
 	type ProcessedPayload,
+	prepare as prepareMessage,
 } from '../../utils/message';
-import setSdpMediaBitrate from './setSdpMediaBitrate';
+import { connect as connectSocket } from '../../utils/socket';
 import VideoAutoQualityOptimizer from '../VideoAutoQualityOptimizer';
 import {
 	VideoQuality,
 	type VideoQualityType,
 } from '../VideoAutoQualityOptimizer/VideoQualityEnum';
-import { prepareDataMessageToChangeQuality } from './simplePeerDataMessages';
-import { VIDEO_QUALITY_TO_DECIMAL } from './../../constants/appConstants';
-import { ErrorMessage } from '../../components/ErrorDialog/ErrorMessageEnum';
-import peerConnectionHandleSocket from './peerConnectionHandleSocket';
-import peerConnectionHandlePeer from './peerConnectionHandlePeer';
-import peerConnectionReceiveEncryptedMessage from './peerConnectionReceiveEncryptedMessage';
-import startSocketConnectedCheckingLoop from './startSocketConnectedCheckingLoop';
-import NullUser from './NullUser';
-import PeerConnectionUIHandler from './PeerConnectionUIHandler';
-import setAndShowErrorDialogMessage from './setAndShowErrorDialogMessage';
+import PeerConnectionPartnerIsNotDefinedError from './errors/PeerConnectionPartnerIsNotDefinedError';
 import PeerConnectionSocketNotDefined from './errors/PeerConnectionSocketNotDefined';
 import PeerConnectionUserIsNotDefinedError from './errors/PeerConnectionUserIsNotDefinedError';
-import PeerConnectionPartnerIsNotDefinedError from './errors/PeerConnectionPartnerIsNotDefinedError';
+import NullUser from './NullUser';
+import PeerConnectionUIHandler from './PeerConnectionUIHandler';
+import peerConnectionHandlePeer from './peerConnectionHandlePeer';
+import peerConnectionHandleSocket from './peerConnectionHandleSocket';
+import peerConnectionReceiveEncryptedMessage from './peerConnectionReceiveEncryptedMessage';
+import setAndShowErrorDialogMessage from './setAndShowErrorDialogMessage';
+import setSdpMediaBitrate from './setSdpMediaBitrate';
+import { prepareDataMessageToChangeQuality } from './simplePeerDataMessages';
+import startSocketConnectedCheckingLoop from './startSocketConnectedCheckingLoop';
 
 export default class PeerConnection {
 	roomId: string;
@@ -37,6 +37,8 @@ export default class PeerConnection {
 	user: LocalPeerUser = NullUser;
 
 	partner: PartnerPeerUser = NullUser;
+
+	hasSentDeviceDetails: boolean = false;
 
 	peer: null | SimplePeer.Instance = null;
 
@@ -249,9 +251,11 @@ export default class PeerConnection {
 			throw new PeerConnectionPartnerIsNotDefinedError();
 		}
 		if (!this.partner.username) return;
-		prepareMessage(payload, this.user).then((msg: ProcessedPayload) => {
-			socket.emit('MESSAGE', msg.toSend);
-		});
+		prepareMessage(payload, this.user, this.partner.username).then(
+			(msg: ProcessedPayload) => {
+				socket.emit('MESSAGE', msg.toSend);
+			},
+		);
 	}
 
 	receiveEncryptedMessage(payload: ReceiveEncryptedMessagePayload) {

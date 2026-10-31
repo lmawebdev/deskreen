@@ -3,6 +3,7 @@ import {
 	overrideGlobalConsole,
 	startConsoleRateLimiting,
 } from '../../common/rateLimitedConsole';
+
 overrideGlobalConsole();
 startConsoleRateLimiting();
 
@@ -68,32 +69,38 @@ export function handleIpcRenderer(): void {
 			},
 		);
 
-		window.electron.ipcRenderer.on('call-peer', () => {
+		window.electron.ipcRenderer.on('call-peer', (_, deviceId?: string) => {
 			if (peerConnection) {
-				peerConnection.callPeer();
+				peerConnection.callPeer(deviceId);
 			}
 		});
 
 		window.electron.ipcRenderer.on(
 			'disconnect-by-host-machine-user',
-			(_, deviceId: string) => {
+			(_, deviceId?: string) => {
 				if (peerConnection) {
 					peerConnection.disconnectByHostMachineUser(deviceId);
 				}
 			},
 		);
 
-		window.electron.ipcRenderer.on('deny-connection-for-partner', () => {
-			if (peerConnection) {
-				peerConnection.denyConnectionForPartner();
-			}
-		});
+		window.electron.ipcRenderer.on(
+			'deny-connection-for-partner',
+			(_, deviceId?: string) => {
+				if (peerConnection) {
+					peerConnection.denyConnectionForPartner(deviceId);
+				}
+			},
+		);
 
-		window.electron.ipcRenderer.on('send-user-allowed-to-connect', () => {
-			if (peerConnection) {
-				peerConnection.sendUserAllowedToConnect();
-			}
-		});
+		window.electron.ipcRenderer.on(
+			'send-user-allowed-to-connect',
+			(_, deviceId?: string) => {
+				if (peerConnection) {
+					peerConnection.sendUserAllowedToConnect(deviceId);
+				}
+			},
+		);
 
 		window.electron.ipcRenderer.on('app-language-changed', () => {
 			if (peerConnection) {

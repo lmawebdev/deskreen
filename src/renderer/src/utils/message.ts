@@ -1,10 +1,12 @@
-import { ProcessedMessage } from './handleRecieveEncryptedMessage';
-import { LocalPeerUser } from '../../../common/LocalPeerUser';
+import type { LocalPeerUser } from '../../../common/LocalPeerUser';
 import type { SendEncryptedMessagePayload } from '../../../common/SendEncryptedMessagePayload';
+import type { ProcessedMessage } from './handleRecieveEncryptedMessage';
 
-interface ProcessedPayload {
-	toSend: ProcessedMessage;
-	original: ProcessedMessage;
+export type OutgoingMessage = ProcessedMessage & { to?: string };
+
+export interface ProcessedPayload {
+	toSend: OutgoingMessage;
+	original: OutgoingMessage;
 }
 
 export const process = (
@@ -16,6 +18,7 @@ export const process = (
 export const prepare = (
 	payload: SendEncryptedMessagePayload,
 	user: LocalPeerUser,
+	targetUsername?: string,
 ): Promise<ProcessedPayload> =>
 	new Promise<ProcessedPayload>((resolve): void => {
 		const myUsername = user.username;
@@ -28,12 +31,13 @@ export const prepare = (
 		}
 		const jsonToSend = {
 			...payload,
+			...(targetUsername ? { to: targetUsername } : {}),
 			payload: {
 				...innerPayload,
 				sender: myId,
 				username: myUsername,
 			},
-		} as ProcessedMessage;
+		} as OutgoingMessage;
 
 		resolve({
 			toSend: jsonToSend,

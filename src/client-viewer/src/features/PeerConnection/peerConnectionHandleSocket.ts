@@ -52,6 +52,9 @@ export default (peerConnection: PeerConnection) => {
 
 	socket.on('connect', () => {
 		let ipCallbackReceived = false;
+		// A reconnect gets a fresh room entry on the server, so the host must
+		// receive this viewer's details again.
+		peerConnection.hasSentDeviceDetails = false;
 
 		// clear any existing reconnect timeout
 		if (peerConnection.reconnectTimeout) {
@@ -90,48 +93,58 @@ export default (peerConnection: PeerConnection) => {
 		setAndShowErrorDialogMessage(peerConnection, ErrorMessage.NOT_ALLOWED);
 	});
 
-	socket.on('USER_ENTER', (payload: { users: PartnerPeerUser[] }) => {
-		if (!isAllowed) return;
-		const filteredPartner = payload.users.filter((v) => {
-			return peerConnection.user.username !== v.username;
-		});
+	socket.on(
+		'USER_ENTER',
+		(payload: { users: PartnerPeerUser[]; ownerUsername?: string }) => {
+			if (!isAllowed) return;
 
-		peerConnection.partner = filteredPartner[0];
+			const users = payload.users || [];
+			const partner =
+				users.find((u) => u.isOwner && u.username === payload.ownerUsername) ??
+				users.find((u) => u.isOwner);
 
-		if (!peerConnection.partner) return;
+			if (!partner) return;
 
-		peerConnection.sendEncryptedMessage({
-			type: 'DEVICE_DETAILS',
-			// TODO: add deviceIP in this payload
-			payload: {
-				os: peerConnection.myDeviceDetails.myOS,
-				deviceType: peerConnection.myDeviceDetails.myDeviceType,
-				browser: peerConnection.myDeviceDetails.myBrowser,
-				deviceScreenWidth: window.screen.width,
-				deviceScreenHeight: window.screen.height,
-			},
-		});
+			peerConnection.partner = partner;
 
-		peerConnection.sendEncryptedMessage({
-			type: 'GET_APP_LANGUAGE',
-			payload: {},
-		});
+			// DEVICE_DETAILS must be sent exactly once per viewer. USER_ENTER is
+			// re-broadcast every time another viewer joins the room.
+			if (peerConnection.hasSentDeviceDetails) return;
+			peerConnection.hasSentDeviceDetails = true;
 
-		// clear any existing timeout
-		if (peerConnection.setMyDeviceDetailsTimeout) {
-			clearTimeout(peerConnection.setMyDeviceDetailsTimeout);
-		}
-
-		peerConnection.setMyDeviceDetailsTimeout = setTimeout(() => {
-			peerConnection.UIHandler.setMyDeviceDetails({
-				myIP: peerConnection.myDeviceDetails.myIP,
-				myOS: peerConnection.myDeviceDetails.myOS,
-				myBrowser: peerConnection.myDeviceDetails.myBrowser,
-				myDeviceType: peerConnection.myDeviceDetails.myDeviceType,
-				myRoomId: peerConnection.roomId,
+			peerConnection.sendEncryptedMessage({
+				type: 'DEVICE_DETAILS',
+				// TODO: add deviceIP in this payload
+				payload: {
+					os: peerConnection.myDeviceDetails.myOS,
+					deviceType: peerConnection.myDeviceDetails.myDeviceType,
+					browser: peerConnection.myDeviceDetails.myBrowser,
+					deviceScreenWidth: window.screen.width,
+					deviceScreenHeight: window.screen.height,
+				},
 			});
-		}, 100);
-	});
+
+			peerConnection.sendEncryptedMessage({
+				type: 'GET_APP_LANGUAGE',
+				payload: {},
+			});
+
+			// clear any existing timeout
+			if (peerConnection.setMyDeviceDetailsTimeout) {
+				clearTimeout(peerConnection.setMyDeviceDetailsTimeout);
+			}
+
+			peerConnection.setMyDeviceDetailsTimeout = setTimeout(() => {
+				peerConnection.UIHandler.setMyDeviceDetails({
+					myIP: peerConnection.myDeviceDetails.myIP,
+					myOS: peerConnection.myDeviceDetails.myOS,
+					myBrowser: peerConnection.myDeviceDetails.myBrowser,
+					myDeviceType: peerConnection.myDeviceDetails.myDeviceType,
+					myRoomId: peerConnection.roomId,
+				});
+			}, 100);
+		},
+	);
 
 	// peerConnection.socket.on('USER_EXIT', (payload: any) => {
 	//   // peerConnection.props.receiveUnencryptedMessage('USER_EXIT', payload);

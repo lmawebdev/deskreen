@@ -19,13 +19,13 @@ export default function handleSocket(peerConnection: PeerConnection): void {
 
 	peerConnection.socket.on(
 		'USER_ENTER',
-		(payload: { users: PartnerPeerUser[] }) => {
+		(payload: { users: PartnerPeerUser[]; ownerUsername?: string }) => {
 			handleSocketUserEnter(peerConnection, payload);
 		},
 	);
 
-	peerConnection.socket.on('USER_EXIT', () => {
-		handleSocketUserExit(peerConnection);
+	peerConnection.socket.on('USER_EXIT', (users: PartnerPeerUser[]) => {
+		handleSocketUserExit(peerConnection, users);
 	});
 
 	peerConnection.socket.on(
@@ -34,8 +34,4 @@ export default function handleSocket(peerConnection: PeerConnection): void {
 			peerConnection.receiveEncryptedMessage(payload);
 		},
 	);
-
-	peerConnection.socket.on('USER_DISCONNECT', () => {
-		peerConnection.toggleLockRoom(false);
-	});
 }

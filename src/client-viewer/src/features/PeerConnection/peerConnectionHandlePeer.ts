@@ -1,11 +1,11 @@
+import { ErrorMessage } from '../../components/ErrorDialog/ErrorMessageEnum';
+import { VideoQuality } from '../VideoAutoQualityOptimizer/VideoQualityEnum';
+import PeerConnectionPeerIsNullError from './errors/PeerConnectionPeerIsNullError';
+import { ScreenSharingSource } from './ScreenSharingSourceEnum';
 import {
 	prepareDataMessageToChangeQuality,
 	prepareDataMessageToGetSharingSourceType,
 } from './simplePeerDataMessages';
-import { VideoQuality } from '../VideoAutoQualityOptimizer/VideoQualityEnum';
-import { ErrorMessage } from '../../components/ErrorDialog/ErrorMessageEnum';
-import PeerConnectionPeerIsNullError from './errors/PeerConnectionPeerIsNullError';
-import { ScreenSharingSource } from './ScreenSharingSourceEnum';
 
 export function getSharingShourceType(peerConnection: PeerConnection) {
 	try {

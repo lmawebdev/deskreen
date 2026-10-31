@@ -1,5 +1,5 @@
-import getDesktopSourceStreamBySourceID from './getDesktopSourceStreamBySourceID';
 import DesktopCapturerSourceType from '../../../../common/DesktopCapturerSourceType';
+import getDesktopSourceStreamBySourceID from './getDesktopSourceStreamBySourceID';
 
 export default async function createDesktopCapturerStream(
 	peerConnection: PeerConnection,

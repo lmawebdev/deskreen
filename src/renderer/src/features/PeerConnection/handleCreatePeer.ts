@@ -1,81 +1,65 @@
-// import SimplePeer from 'simple-peer';
-import createDesktopCapturerStream from './createDesktopCapturerStream';
 import handlePeerOnData from './handlePeerOnData';
-import NullSimplePeer from './NullSimplePeer';
-// import simplePeerHandleSdpTransform from './simplePeerHandleSdpTransform';
+import type { HostPartnerConnection } from './index';
+
+type SimplePeerInstance = InstanceType<typeof import('simple-peer')>;
 
 export default function handleCreatePeer(
 	peerConnection: PeerConnection,
+	partner: HostPartnerConnection,
 ): Promise<void> {
-	return new Promise((resolve, reject) => {
-		// cleanup existing peer before creating new one
-		if (peerConnection.peer !== NullSimplePeer) {
-			try {
-				peerConnection.peer.removeAllListeners();
-				peerConnection.peer.destroy();
-			} catch (error) {
-				console.error('Error cleaning up existing peer:', error);
+	return new Promise((resolve) => {
+		if (partner.peer) {
+			resolve();
+			return;
+		}
+
+		// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+		// @ts-ignore SimplePeer is loaded as a global by the helper window
+		const peer = new SimplePeer({
+			initiator: true,
+			config: { iceServers: [] },
+		}) as SimplePeerInstance;
+
+		partner.peer = peer;
+
+		if (peerConnection.localStream !== null) {
+			peer.addStream(peerConnection.localStream);
+			partner.hasStream = true;
+			partner.stream = peerConnection.localStream;
+			partner.currentTrack =
+				peerConnection.localStream.getVideoTracks()[0] ?? null;
+		}
+
+		peer.on('signal', (data: unknown) => {
+			if (partner.peer !== peer) return;
+			if (partner.isCallStarted) {
+				void peerConnection.sendEncryptedMessage(
+					{
+						type: 'CALL_USER',
+						payload: {
+							signalData: data,
+						},
+					},
+					partner.username,
+				);
+			} else {
+				partner.signals.push(data);
 			}
-			peerConnection.peer = NullSimplePeer;
-		}
+		});
 
-		// cleanup existing stream before creating new one
-		if (peerConnection.localStream) {
-			peerConnection.localStream.getTracks().forEach((track) => {
-				track.stop();
-			});
-			peerConnection.localStream = null;
-		}
+		peer.on('data', (data: string) => {
+			void handlePeerOnData(peerConnection, partner, data);
+		});
 
-		// clear old signals and reset call state when recreating peer
-		peerConnection.signalsDataToCallUser = [];
-		peerConnection.isCallStarted = false;
+		peer.on('close', () => {
+			peerConnection.handlePartnerPeerClosed(partner.username, peer);
+		});
 
-		createDesktopCapturerStream(
-			peerConnection,
-			peerConnection.desktopCapturerSourceID,
-		)
-			.then(() => {
-				// if (peerConnection.peer === NullSimplePeer) {
-				// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-				// @ts-ignore
-				peerConnection.peer = new SimplePeer({
-					initiator: true,
-					// trickle: false,
-					// wrtc: window.api.wrtc,
-					config: { iceServers: [] },
-					// sdpTransform: simplePeerHandleSdpTransform,
-				});
-				// }
+		peer.on('error', (e: Error) => {
+			console.error('peerConnection peer error', e);
+			peerConnection.handlePartnerPeerClosed(partner.username, peer);
+		});
 
-				// TODO: basically here we need a client side simple peer, but we get a nodejs side simple peer
-				if (peerConnection.localStream !== null) {
-					peerConnection.peer.addStream(peerConnection.localStream);
-				}
-
-				peerConnection.peer.on('signal', (data: string) => {
-					// fired when simple peer and webrtc done preparation to start call on peerConnection machine
-					peerConnection.signalsDataToCallUser.push(data);
-				});
-
-				peerConnection.peer.on('data', (data) => {
-					handlePeerOnData(peerConnection, data);
-				});
-
-				// ensure cleanup on peer end/error to prevent dangling helper window
-				peerConnection.peer.on('close', () => {
-					peerConnection.selfDestroy();
-				});
-
-				peerConnection.peer.on('error', (e: Error) => {
-					console.error('peerConnection peer error', e);
-					peerConnection.selfDestroy();
-				});
-				resolve(undefined);
-			})
-			.catch((e) => {
-				console.error(e);
-				reject();
-			});
+		resolve();
 	});
 }

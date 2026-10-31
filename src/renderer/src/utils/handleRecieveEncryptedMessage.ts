@@ -1,5 +1,5 @@
-import { process as processMessage } from './message';
 import { IpcEvents } from '../../../common/IpcEvents.enum';
+import { process as processMessage } from './message';
 
 export type CallAcceptedMessageWithPayload = {
 	type: 'CALL_ACCEPTED';
@@ -63,14 +63,24 @@ export type ProcessedMessage =
 	| AllowedToConnectMessageWithPayload
 	| DisconnectByHostMachineUserMessageWithPayload;
 
+function getSenderUsername(payload: ReceiveEncryptedMessagePayload): string {
+	const username = payload.payload?.username;
+	return typeof username === 'string' ? username : '';
+}
+
 export function handleDeviceIPMessage(
 	deviceIP: string,
 	peerConnection: PeerConnection,
-	message: ProcessedMessage,
+	message: DeviceDetailsMessageWithPayload,
+	username: string,
 ): void {
-	if (message.type !== 'DEVICE_DETAILS') return;
+	const partner = peerConnection.ensurePartner(username);
+
+	const isNewDevice = partner.deviceID === '';
+	const deviceID = partner.deviceID || Math.random().toString();
+
 	const device = {
-		id: Math.random().toString(),
+		id: deviceID,
 		deviceIP,
 		deviceType: message.payload.deviceType,
 		deviceOS: message.payload.os,
@@ -80,14 +90,25 @@ export function handleDeviceIPMessage(
 		sharingSessionID: peerConnection.sharingSessionID,
 		deviceRoomId: peerConnection.roomID,
 	};
-	peerConnection.partnerDeviceDetails = device;
-	peerConnection.onDeviceConnectedCallback(device);
+
+	partner.deviceID = device.id;
+	partner.deviceDetails = device;
+
+	if (isNewDevice) {
+		peerConnection.onDeviceConnectedCallback(device);
+	}
 }
 
 export const handleRecieveEncryptedMessage = async (
 	peerConnection: PeerConnection,
 	payload: ReceiveEncryptedMessagePayload,
 ): Promise<void> => {
+	// A viewer can only talk to the host; ignore messages addressed to others.
+	if (payload.to && payload.to !== peerConnection.user.username) return;
+
+	const senderUsername = getSenderUsername(payload);
+	if (!senderUsername) return;
+
 	let message: ProcessedMessage;
 	try {
 		message = await processMessage(payload);
@@ -95,29 +116,45 @@ export const handleRecieveEncryptedMessage = async (
 		console.error('failed to process incoming message', e, payload);
 		return;
 	}
-	// const message = payload as any;
+
 	if (message.type === 'CALL_ACCEPTED') {
-		peerConnection.peer.signal(message.payload.signalData);
+		const partner = peerConnection.getPartnerByUsername(senderUsername);
+		if (!partner?.peer) return;
+		try {
+			partner.peer.signal(message.payload.signalData);
+		} catch (error) {
+			console.error('failed to signal viewer peer', error);
+		}
 	}
+
 	if (message.type === 'DEVICE_DETAILS') {
 		peerConnection.socket.emit(
 			'GET_IP_BY_SOCKET_ID',
 			payload.fromSocketID,
 			(deviceIP: string) => {
 				// TODO: need to add myIP in client message.payload.myIP, then if retrieved deviceIP and myIP from client don't match, we were spoofed, then we can interrupt connection immediately!
-				handleDeviceIPMessage(deviceIP, peerConnection, message);
+				handleDeviceIPMessage(
+					deviceIP,
+					peerConnection,
+					message,
+					senderUsername,
+				);
 			},
 		);
 	}
+
 	if (message.type === 'GET_APP_LANGUAGE') {
 		const appLanguage = await window.electron.ipcRenderer.invoke(
 			IpcEvents.GetAppLanguage,
 		);
-		peerConnection.sendEncryptedMessage({
-			type: 'APP_LANGUAGE',
-			payload: {
-				value: appLanguage,
+		await peerConnection.sendEncryptedMessage(
+			{
+				type: 'APP_LANGUAGE',
+				payload: {
+					value: appLanguage,
+				},
 			},
-		});
+			senderUsername,
+		);
 	}
 };
