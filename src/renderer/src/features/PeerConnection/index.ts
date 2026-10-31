@@ -49,6 +49,7 @@ export default class PeerConnection {
 	desktopCapturerSourceID: string;
 	localStream: MediaStream | null = null;
 	hasStartedSharing = false;
+	hasJoinedRoom = false;
 	isDestroyed = false;
 	isReplacingSharedTrack = false;
 	onDeviceConnectedCallback: (device: Device) => void;

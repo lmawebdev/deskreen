@@ -38,6 +38,10 @@ export default (peerConnection: PeerConnection) => {
 
 	socket.on('disconnect', () => {
 		disconnectCount++;
+		if (peerConnection.getMyIPRetryInterval) {
+			clearInterval(peerConnection.getMyIPRetryInterval);
+			peerConnection.getMyIPRetryInterval = null;
+		}
 		// handle disconnect even when stream is started - stop stream and show error
 		if (peerConnection.isStreamStarted && disconnectCount >= 1) {
 			peerConnection.stopStream();
@@ -61,31 +65,49 @@ export default (peerConnection: PeerConnection) => {
 			clearTimeout(peerConnection.reconnectTimeout);
 		}
 
-		peerConnection.reconnectTimeout = setTimeout(() => {
-			if (!ipCallbackReceived && isAllowed) {
-				console.log('GET_MY_IP callback not received, reconnecting socket');
-				socket.disconnect();
-				socket.connect();
-			}
-		}, 2500); // 2 seconds timeout to wait for callback
-
-		// clear any existing getMyIP timeout
 		if (peerConnection.getMyIPTimeout) {
 			clearTimeout(peerConnection.getMyIPTimeout);
 		}
+		if (peerConnection.getMyIPRetryInterval) {
+			clearInterval(peerConnection.getMyIPRetryInterval);
+			peerConnection.getMyIPRetryInterval = null;
+		}
 
-		peerConnection.getMyIPTimeout = setTimeout(() => {
-			if (!isAllowed) return;
+		const requestMyIP = (): void => {
+			if (ipCallbackReceived || !isAllowed || !socket.connected) return;
 			socket.emit('GET_MY_IP', (ip: string) => {
+				if (ipCallbackReceived) return;
 				console.log('GET_MY_IP', ip);
 				ipCallbackReceived = true;
 				if (peerConnection.reconnectTimeout) {
 					clearTimeout(peerConnection.reconnectTimeout);
 					peerConnection.reconnectTimeout = null;
 				}
+				if (peerConnection.getMyIPTimeout) {
+					clearTimeout(peerConnection.getMyIPTimeout);
+					peerConnection.getMyIPTimeout = null;
+				}
+				if (peerConnection.getMyIPRetryInterval) {
+					clearInterval(peerConnection.getMyIPRetryInterval);
+					peerConnection.getMyIPRetryInterval = null;
+				}
 				getMyIPCallback(peerConnection, ip, window.navigator.userAgent);
 			});
-		}, 500);
+		};
+
+		peerConnection.reconnectTimeout = setTimeout(() => {
+			if (!ipCallbackReceived && isAllowed) {
+				console.log('GET_MY_IP callback not received, reconnecting socket');
+				socket.disconnect();
+				socket.connect();
+			}
+		}, 2500);
+
+		// The signaling server registers its handlers ~500ms after the
+		// connection, so an immediate GET_MY_IP can be lost. Retry until the
+		// server acknowledges.
+		peerConnection.getMyIPTimeout = setTimeout(requestMyIP, 500);
+		peerConnection.getMyIPRetryInterval = setInterval(requestMyIP, 500);
 	});
 
 	socket.on('NOT_ALLOWED', () => {

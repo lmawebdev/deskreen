@@ -72,6 +72,8 @@ export default class PeerConnection {
 
 	getMyIPTimeout: NodeJS.Timeout | null = null;
 
+	getMyIPRetryInterval: NodeJS.Timeout | null = null;
+
 	setMyDeviceDetailsTimeout: NodeJS.Timeout | null = null;
 
 	constructor(
@@ -152,6 +154,10 @@ export default class PeerConnection {
 		if (this.getMyIPTimeout) {
 			clearTimeout(this.getMyIPTimeout);
 			this.getMyIPTimeout = null;
+		}
+		if (this.getMyIPRetryInterval) {
+			clearInterval(this.getMyIPRetryInterval);
+			this.getMyIPRetryInterval = null;
 		}
 		if (this.setMyDeviceDetailsTimeout) {
 			clearTimeout(this.setMyDeviceDetailsTimeout);

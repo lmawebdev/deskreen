@@ -14,7 +14,34 @@ export default function handleSocket(peerConnection: PeerConnection): void {
 	});
 
 	peerConnection.socket.on('connect', () => {
-		peerConnection.emitUserEnter();
+		peerConnection.hasJoinedRoom = false;
+		let attempts = 0;
+
+		const emitUserEnter = (): void => {
+			if (peerConnection.hasJoinedRoom || peerConnection.isDestroyed) return;
+			peerConnection.emitUserEnter();
+		};
+
+		// The signaling server registers its handlers ~500ms after the
+		// connection, so an immediate USER_ENTER can be lost. Retry until the
+		// room broadcasts us back.
+		emitUserEnter();
+		const retryInterval = setInterval(() => {
+			attempts += 1;
+			if (
+				peerConnection.hasJoinedRoom ||
+				peerConnection.isDestroyed ||
+				attempts > 10
+			) {
+				clearInterval(retryInterval);
+				return;
+			}
+			emitUserEnter();
+		}, 600);
+
+		peerConnection.socket.once('disconnect', () => {
+			clearInterval(retryInterval);
+		});
 	});
 
 	peerConnection.socket.on(

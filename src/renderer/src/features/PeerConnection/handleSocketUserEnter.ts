@@ -4,6 +4,10 @@ export default (
 ): void => {
 	const users = payload.users || [];
 
+	if (users.some((user) => user.username === peerConnection.user.username)) {
+		peerConnection.hasJoinedRoom = true;
+	}
+
 	for (const user of users) {
 		if (user.username === peerConnection.user.username) continue;
 		// Only non-owner sockets are viewers. A stale owner entry must never
