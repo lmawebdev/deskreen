@@ -1,4 +1,5 @@
 import { Device } from '../../common/Device';
+import { MAX_VIEWERS } from '../../common/maxViewers';
 
 export const nullDevice: Device = {
 	id: '',
@@ -12,67 +13,64 @@ export const nullDevice: Device = {
 	deviceRoomId: '',
 };
 
-const SLOT_VIOLATION_MESSAGE = 'single viewer slot is already occupied';
-
 type ViewerConnectionAvailability = 'available' | 'occupied';
 
-class SingleViewerSlot {
-	private device: Readonly<Device> | null = null;
-
-	occupy(device: Device): void {
-		if (this.device && this.device.id !== device.id) {
-			throw new Error(SLOT_VIOLATION_MESSAGE);
-		}
-		this.device = Object.freeze({ ...device });
-	}
-
-	releaseById(deviceIDToRemove: string): boolean {
-		if (!this.device) return false;
-		if (this.device.id !== deviceIDToRemove) {
-			return false;
-		}
-		this.device = null;
-		return true;
-	}
-
-	release(): void {
-		this.device = null;
-	}
-
-	isAvailable(): boolean {
-		return this.device === null;
-	}
-
-	snapshot(): Device[] {
-		if (!this.device) return [];
-		return [{ ...this.device }];
-	}
-
-	isOccupiedBy(deviceID: string): boolean {
-		if (!this.device) return false;
-		return this.device.id === deviceID;
-	}
-}
-
+/**
+ * Keeps track of every viewer connected to the host, and of the viewers that
+ * are waiting for the host user to approve their connection.
+ *
+ * The service allows up to MAX_VIEWERS simultaneous viewers. Pending devices are
+ * kept in a FIFO queue so two viewers connecting at the same time are approved
+ * one after the other instead of overwriting each other's notification.
+ */
 export class ConnectedDevicesService {
-	private readonly slot = new SingleViewerSlot();
+	private readonly devices = new Map<string, Device>();
 
-	pendingConnectionDevice: Device = nullDevice;
+	private pendingConnectionDevices: Device[] = [];
 
 	private readonly availabilityListeners = new Set<
 		(state: ViewerConnectionAvailability) => void
 	>();
 
+	get pendingConnectionDevice(): Device {
+		return this.pendingConnectionDevices[0] ?? nullDevice;
+	}
+
+	getPendingConnectionDevices(): Device[] {
+		return this.pendingConnectionDevices.map((device) => ({ ...device }));
+	}
+
 	resetPendingConnectionDevice(): void {
-		this.pendingConnectionDevice = nullDevice;
+		this.pendingConnectionDevices.shift();
+	}
+
+	setPendingConnectionDevice(device: Device): void {
+		if (!device.id) return;
+		if (this.devices.has(device.id)) return;
+		if (
+			this.pendingConnectionDevices.some((pending) => pending.id === device.id)
+		)
+			return;
+		this.pendingConnectionDevices.push({ ...device });
 	}
 
 	getDevices(): Device[] {
-		return this.slot.snapshot();
+		return [...this.devices.values()].map((device) => ({ ...device }));
+	}
+
+	getDeviceByID(deviceID: string): Device | undefined {
+		const device = this.devices.get(deviceID);
+		return device ? { ...device } : undefined;
+	}
+
+	getDevicesBySharingSessionID(sharingSessionID: string): Device[] {
+		return this.getDevices().filter(
+			(device) => device.sharingSessionID === sharingSessionID,
+		);
 	}
 
 	isSlotAvailable(): boolean {
-		return this.slot.isAvailable();
+		return this.devices.size < MAX_VIEWERS;
 	}
 
 	addAvailabilityListener(
@@ -86,36 +84,47 @@ export class ConnectedDevicesService {
 	}
 
 	disconnectAllDevices(): void {
-		this.slot.release();
+		this.devices.clear();
+		this.pendingConnectionDevices = [];
 		this.notifyAvailabilityListeners();
 	}
 
-	disconnectDeviceByID(deviceIDToRemove: string): Promise<undefined> {
-		return new Promise<undefined>((resolve) => {
-			this.slot.releaseById(deviceIDToRemove);
+	disconnectDeviceByID(deviceIDToRemove: string): void {
+		const hadPendingDevice = this.pendingConnectionDevices.some(
+			(device) => device.id === deviceIDToRemove,
+		);
+
+		if (hadPendingDevice) {
+			this.pendingConnectionDevices = this.pendingConnectionDevices.filter(
+				(device) => device.id !== deviceIDToRemove,
+			);
+		}
+
+		const hadConnectedDevice = this.devices.delete(deviceIDToRemove);
+
+		if (hadPendingDevice || hadConnectedDevice) {
 			this.notifyAvailabilityListeners();
-			resolve(undefined);
-		});
+		}
+	}
+
+	getPendingConnectionDeviceByID(deviceID: string): Device | undefined {
+		const device = this.pendingConnectionDevices.find(
+			(pending) => pending.id === deviceID,
+		);
+		return device ? { ...device } : undefined;
 	}
 
 	addDevice(device: Device): void {
-		try {
-			this.slot.occupy(device);
-		} catch (error) {
-			if (error instanceof Error && error.message === SLOT_VIOLATION_MESSAGE) {
-				throw error;
-			}
-			throw error;
+		if (this.devices.has(device.id)) return;
+		if (!this.isSlotAvailable()) {
+			throw new Error('maximum number of connected viewers was reached');
 		}
+		this.devices.set(device.id, { ...device });
 		this.notifyAvailabilityListeners();
 	}
 
-	setPendingConnectionDevice(device: Device): void {
-		this.pendingConnectionDevice = device;
-	}
-
 	private getAvailabilityState(): ViewerConnectionAvailability {
-		return this.slot.isAvailable() ? 'available' : 'occupied';
+		return this.isSlotAvailable() ? 'available' : 'occupied';
 	}
 
 	private notifyAvailabilityListeners(): void {

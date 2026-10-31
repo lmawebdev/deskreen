@@ -1,6 +1,7 @@
 export enum IpcEvents {
 	CreateWaitingForConnectionSharingSession = 'create-waiting-for-connection-sharing-session',
 	SetPendingConnectionDevice = 'set-pending-connection-device',
+	DenyPendingConnectionDevice = 'deny-pending-connection-device',
 	UnmarkRoomIDAsTaken = 'unmark-room-id-as-taken',
 	GetAppPath = 'get-app-path',
 	ResetWaitingForConnectionSharingSession = 'reset-waiting-for-connection-sharing-session',
@@ -13,6 +14,7 @@ export enum IpcEvents {
 	DisconnectAllDevices = 'disconnect-all-devices',
 	GetViewerConnectionAvailability = 'get-viewer-connection-availability',
 	ViewerConnectionAvailabilityChanged = 'viewer-connection-availability-changed',
+	SharingSessionClosed = 'sharing-session-closed',
 	AppLanguageChanged = 'app-language-changed',
 	GetDesktopCapturerServiceSourcesMap = 'get-desktop-capturer-service-sources-map',
 	GetDesktopCapturerServiceSourcesByIds = 'get-desktop-capturer-service-sources-by-ids',

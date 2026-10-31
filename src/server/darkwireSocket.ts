@@ -6,6 +6,7 @@
 /* eslint-disable no-async-promise-executor */
 import _ from 'lodash';
 import Io from 'socket.io';
+import { MAX_VIEWERS } from '../common/maxViewers';
 import socketsIPService from './socketsIPService';
 import getStore from './store';
 import socketIOServerStore from './store/socketIOServerStore';
@@ -124,8 +125,23 @@ export default class Socket implements SocketOPTS {
 			);
 		});
 
+		this.socket.on('DISCONNECT_SOCKET_BY_SOCKET_ID', async (socketID) => {
+			const room: Room = (await this.fetchRoom()) as Room;
+			const ownerUser = (room.users || []).find(
+				(u) => u.socketId === this.socket.id && u.isOwner,
+			);
+			if (!ownerUser) return;
+			const socketToDisconnect =
+				socketIOServerStore.getServer().sockets.sockets[socketID];
+			if (!socketToDisconnect) return;
+
+			this.handleDisconnect(socketToDisconnect);
+		});
+
 		this.socket.on('USER_ENTER', async (payload) => {
 			let room: Room = (await this.fetchRoom()) as Room;
+			const isOwnerSocket = isLocalhostSocket(this.socket);
+
 			if (_.isEmpty(room)) {
 				room = {
 					id: this.roomId,
@@ -133,46 +149,81 @@ export default class Socket implements SocketOPTS {
 					isLocked: false,
 					createdAt: Date.now(),
 				};
-			} else {
-				const userFound = room.users.find(
-					(r) => r.username === payload.username,
-				);
-				if (userFound) return;
 			}
 
-			const isOwnerSocket = isLocalhostSocket(this.socket);
-			if (!isOwnerSocket) {
-				const connectedViewers = (room.users || []).filter((user) => {
-					return !user.isOwner;
-				});
-				if (connectedViewers.length >= 1) {
-					this.socket.emit('NOT_ALLOWED');
-					setTimeout(() => {
-						this.socket.disconnect(true);
-					}, 0);
+			const existingUserIndex = (room.users || []).findIndex(
+				(r) => r.username === payload.username,
+			);
+
+			let newRoom: Room;
+
+			if (existingUserIndex !== -1) {
+				const existingUser = (room.users || [])[existingUserIndex];
+				const existingSocket =
+					socketIOServerStore.getServer().sockets.sockets[
+						existingUser.socketId
+					];
+				const isExistingSocketAlive = Boolean(existingSocket?.connected);
+
+				// The owner may reclaim its username from localhost. A viewer
+				// may reclaim its username only when its previous socket is
+				// already gone (reconnect). Everything else is a duplicate
+				// username and must be ignored.
+				const canReclaimUsername =
+					(existingUser.isOwner && isOwnerSocket) ||
+					(!existingUser.isOwner && !isOwnerSocket && !isExistingSocketAlive);
+
+				if (!canReclaimUsername) {
 					return;
 				}
+
+				const users = (room.users || []).map((user, index) => {
+					if (index !== existingUserIndex) return user;
+					return {
+						...user,
+						socketId: this.socket.id,
+					};
+				});
+				newRoom = { ...room, users };
+			} else {
+				if (!isOwnerSocket) {
+					const connectedViewers = (room.users || []).filter((user) => {
+						return !user.isOwner;
+					});
+					if (connectedViewers.length >= MAX_VIEWERS) {
+						this.socket.emit('NOT_ALLOWED');
+						setTimeout(() => {
+							this.socket.disconnect(true);
+						}, 0);
+						return;
+					}
+				}
+
+				newRoom = {
+					...room,
+					users: [
+						...(room.users || []),
+						{
+							socketId: this.socket.id,
+							username: payload.username,
+							isOwner: isOwnerSocket,
+							ip: payload.ip ? payload.ip : '', // TODO: remove as it is not used
+						},
+					],
+				};
 			}
 
-			const newRoom: Room = {
-				...room,
-				users: [
-					...(room.users || []),
-					{
-						socketId: this.socket.id,
-						username: payload.username,
-						isOwner: isOwnerSocket,
-						ip: payload.ip ? payload.ip : '', // TODO: remove as it is not used
-					},
-				],
-			};
 			await this.saveRoom(newRoom);
+
+			const ownerUsername =
+				(newRoom.users || []).find((user) => user.isOwner)?.username ?? '';
 
 			socketIOServerStore
 				.getServer()
 				.to(this.roomId)
 				.emit('USER_ENTER', {
 					...newRoom,
+					ownerUsername,
 					id: this.roomIdOriginal,
 				});
 		});
@@ -211,12 +262,7 @@ export default class Socket implements SocketOPTS {
 
 		const newRoom = {
 			...room,
-			users: (room.users || [])
-				.filter((u) => u.socketId !== socket.id)
-				.map((u, index) => ({
-					...u,
-					isOwner: index === 0,
-				})),
+			users: (room.users || []).filter((u) => u.socketId !== socket.id),
 		};
 
 		if (isOwnerUser) {

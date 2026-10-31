@@ -1,10 +1,10 @@
 import { BrowserWindow } from 'electron';
 import uuid from 'uuid';
-import SharingSessionStatusEnum from './SharingSessionStatusEnum';
-import SharingTypeEnum from './SharingTypeEnum';
-import PeerConnectionHelperRendererService from '../PeerConnectionHelperRendererService';
 import { Device } from '../../common/Device';
 import { LocalPeerUser } from '../../common/LocalPeerUser';
+import PeerConnectionHelperRendererService from '../PeerConnectionHelperRendererService';
+import SharingSessionStatusEnum from './SharingSessionStatusEnum';
+import SharingTypeEnum from './SharingTypeEnum';
 
 export type SharingSessionStatusChangeListener = (
 	sharingSessionID: string,
@@ -12,7 +12,6 @@ export type SharingSessionStatusChangeListener = (
 
 export default class SharingSession {
 	id: string;
-	deviceID: string;
 	sharingType: SharingTypeEnum;
 	sharingStream: MediaStream | null;
 	roomID: string;
@@ -23,6 +22,7 @@ export default class SharingSession {
 	peerConnectionHelperRenderer: BrowserWindow | undefined;
 	onDeviceConnectedCallback: undefined | ((device: Device) => void);
 	desktopCapturerSourceID: string;
+	firstViewerDeviceID: string;
 
 	constructor(
 		_roomID: string,
@@ -30,7 +30,6 @@ export default class SharingSession {
 		peerConnectionHelperRendererService: PeerConnectionHelperRendererService,
 	) {
 		this.id = uuid.v4();
-		this.deviceID = '';
 		this.sharingType = SharingTypeEnum.NOT_SET;
 		this.sharingStream = null;
 		this.roomID = _roomID;
@@ -39,6 +38,7 @@ export default class SharingSession {
 		this.status = SharingSessionStatusEnum.NOT_CONNECTED;
 		this.statusChangeListeners = [] as SharingSessionStatusChangeListener[];
 		this.desktopCapturerSourceID = '';
+		this.firstViewerDeviceID = '';
 		this.onDeviceConnectedCallback = undefined;
 
 		if (process.env.RUN_MODE === 'test') return;
@@ -71,14 +71,6 @@ export default class SharingSession {
 				}
 			},
 		);
-
-		this.statusChangeListeners.push(() => {
-			if (this.status === SharingSessionStatusEnum.CONNECTED) {
-				this.peerConnectionHelperRenderer?.webContents.send(
-					'send-user-allowed-to-connect',
-				);
-			}
-		});
 	}
 
 	destroy(): void {
@@ -98,26 +90,31 @@ export default class SharingSession {
 		);
 	}
 
-	callPeer(): void {
+	callPeer(deviceID?: string): void {
 		if (process.env.RUN_MODE === 'test') return;
-		this.peerConnectionHelperRenderer?.webContents.send('call-peer');
+		this.sendToHelperRenderer('call-peer', deviceID);
 	}
 
-	disconnectByHostMachineUser(): void {
-		this.peerConnectionHelperRenderer?.webContents.send(
-			'disconnect-by-host-machine-user',
-			this.deviceID,
-		);
+	sendUserAllowedToConnect(deviceID?: string): void {
+		this.sendToHelperRenderer('send-user-allowed-to-connect', deviceID);
 	}
 
-	denyConnectionForPartner(): void {
-		this.peerConnectionHelperRenderer?.webContents.send(
-			'deny-connection-for-partner',
-		);
+	disconnectByHostMachineUser(deviceID?: string): void {
+		this.sendToHelperRenderer('disconnect-by-host-machine-user', deviceID);
+	}
+
+	denyConnectionForPartner(deviceID?: string): void {
+		this.sendToHelperRenderer('deny-connection-for-partner', deviceID);
 	}
 
 	appLanguageChanged(): void {
-		this.peerConnectionHelperRenderer?.webContents.send('app-language-changed');
+		this.sendToHelperRenderer('app-language-changed');
+	}
+
+	private sendToHelperRenderer(channel: string, ...args: unknown[]): void {
+		const helper = this.peerConnectionHelperRenderer;
+		if (!helper || helper.isDestroyed()) return;
+		helper.webContents.send(channel, ...args);
 	}
 
 	addStatusChangeListener(callback: SharingSessionStatusChangeListener): void {
@@ -136,9 +133,5 @@ export default class SharingSession {
 	setStatus(newStatus: SharingSessionStatusEnum): void {
 		this.status = newStatus;
 		this.notifyStatusChangeListeners();
-	}
-
-	setDeviceID(deviceID: string): void {
-		this.deviceID = deviceID;
 	}
 }
