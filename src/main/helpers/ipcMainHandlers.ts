@@ -22,6 +22,10 @@ import i18n from '../configs/i18next.config';
 import isLinuxWaylandSession from '../utils/isLinuxWaylandSession';
 import { checkScreenRecordingPermission } from './checkScreenRecordingPermission';
 import { getDeskreenGlobal } from './getDeskreenGlobal';
+import {
+	getExtendedDisplaySettings,
+	saveExtendedDisplaySettings,
+} from './extendedDisplaySettings';
 import getMyLocalIpV4 from './getMyLocalIpV4';
 import isWifiConnected from './isWifiConnected';
 
@@ -153,10 +157,6 @@ export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
 			null;
 		deskreenGlobal.rendererWebrtcHelpersService.helpers.clear();
 		deskreenGlobal.sharingSessionService.sharingSessions.clear();
-	});
-
-	ipcMain.handle('get-latest-version', () => {
-		return getDeskreenGlobal().latestAppVersion;
 	});
 
 	ipcMain.handle('get-current-version', () => {
@@ -325,8 +325,55 @@ export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
 	);
 
 	ipcMain.handle(IpcEvents.GetVirtualDisplaySupport, () => {
-		return getDeskreenGlobal().virtualDisplayService.isSupported();
+		return getDeskreenGlobal().virtualDisplayService.getSupportInfo();
 	});
+
+	ipcMain.handle(IpcEvents.InstallVirtualDisplayDriver, () => {
+		return getDeskreenGlobal().virtualDisplayService.installWindowsDriver();
+	});
+
+	ipcMain.handle(IpcEvents.GetExtendedDisplaySettings, () => {
+		return getExtendedDisplaySettings();
+	});
+
+	ipcMain.handle(
+		IpcEvents.SetExtendedDisplaySettings,
+		(
+			_,
+			settings:
+				| {
+						frameRate?: unknown;
+						bitrateMbps?: unknown;
+						resolutionScale?: unknown;
+						priority?: unknown;
+				  }
+				| undefined,
+		) => {
+			const previous = getExtendedDisplaySettings();
+			const next = saveExtendedDisplaySettings(settings);
+			const deskreenGlobal = getDeskreenGlobal();
+
+			deskreenGlobal.rendererWebrtcHelpersService.helpers.forEach(
+				(helperWindow) => {
+					if (!helperWindow.isDestroyed()) {
+						helperWindow.webContents.send(
+							IpcEvents.ExtendedDisplaySettingsChanged,
+							next,
+						);
+					}
+				},
+			);
+
+			if (
+				previous.frameRate !== next.frameRate ||
+				previous.resolutionScale !== next.resolutionScale
+			) {
+				deskreenGlobal.virtualDisplayService.applySettingsToDisplays();
+			}
+
+			return next;
+		},
+	);
 
 	ipcMain.handle(IpcEvents.GetSharingType, () => {
 		const sharingSession =

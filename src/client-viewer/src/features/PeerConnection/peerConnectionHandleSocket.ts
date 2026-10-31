@@ -8,16 +8,19 @@ import {
 import PeerConnectionSocketNotDefined from './errors/PeerConnectionSocketNotDefined';
 import setAndShowErrorDialogMessage from './setAndShowErrorDialogMessage';
 
-function getVideoAreaSize(): { width: number; height: number } {
+export function getVideoAreaSize(): { width: number; height: number } {
 	const wrapper = document.getElementById(PLAYER_WRAPPER_ID);
-	const width = wrapper?.clientWidth ?? 0;
-	const height = wrapper?.clientHeight ?? 0;
-	if (width > 0 && height > 0) {
-		return { width, height };
-	}
+	const cssWidth = wrapper?.clientWidth ?? window.innerWidth;
+	const cssHeight = wrapper?.clientHeight ?? window.innerHeight;
+
+	// The virtual display must be sized in physical pixels: on a phone with
+	// devicePixelRatio 3 a 360x800 CSS area would otherwise create a tiny
+	// 360x800 monitor and the stream would look blurry.
+	const dpr = window.devicePixelRatio || 1;
+
 	return {
-		width: window.innerWidth,
-		height: window.innerHeight,
+		width: Math.max(1, Math.round(cssWidth * dpr)),
+		height: Math.max(1, Math.round(cssHeight * dpr)),
 	};
 }
 
@@ -166,6 +169,13 @@ export default (peerConnection: PeerConnection) => {
 				payload: {},
 			});
 
+			// The player wrapper may still be mounting when DEVICE_DETAILS is
+			// sent, so send the final video area size once the UI settles. The
+			// host uses it to resize the virtual display to the viewer aspect.
+			for (const delay of [800, 2000, 4000]) {
+				setTimeout(sendScreenSize, delay);
+			}
+
 			// clear any existing timeout
 			if (peerConnection.setMyDeviceDetailsTimeout) {
 				clearTimeout(peerConnection.setMyDeviceDetailsTimeout);
@@ -199,9 +209,8 @@ export default (peerConnection: PeerConnection) => {
 	let lastSize: { width: number; height: number } | null = null;
 	let screenSizeTimer: NodeJS.Timeout | null = null;
 
-	const sendScreenSize = (): void => {
+	function sendScreenSize(): void {
 		if (!peerConnection.partner?.username) return;
-
 		const { width, height } = getVideoAreaSize();
 		if (width <= 0 || height <= 0) return;
 		if (lastSize && lastSize.width === width && lastSize.height === height) {
@@ -216,12 +225,12 @@ export default (peerConnection: PeerConnection) => {
 				height,
 			},
 		});
-	};
+	}
 
-	const scheduleScreenSize = (): void => {
+	function scheduleScreenSize(): void {
 		if (screenSizeTimer) clearTimeout(screenSizeTimer);
 		screenSizeTimer = setTimeout(sendScreenSize, 500);
-	};
+	}
 
 	window.addEventListener('orientationchange', scheduleScreenSize);
 	window.addEventListener('resize', scheduleScreenSize);

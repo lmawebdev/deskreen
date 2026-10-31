@@ -10,6 +10,11 @@
 	object-fit: contain !important;
 }
 
+.video-js.vjs-cover .vjs-tech,
+.video-js.vjs-cover .vjs-tech[style] {
+	object-fit: cover !important;
+}
+
 :fullscreen .video-js,
 :fullscreen .video-js .vjs-tech,
 :-webkit-full-screen .video-js,
@@ -18,4 +23,9 @@
 	height: 100% !important;
 	object-fit: contain !important;
 	background-color: #000 !important;
+}
+
+:fullscreen .video-js.vjs-cover .vjs-tech,
+:-webkit-full-screen .video-js.vjs-cover .vjs-tech {
+	object-fit: cover !important;
 }

@@ -7,7 +7,7 @@ export default (sdp: string, mediaType: string, bitrate: number) => {
 	mediaLineIndex = sdpLines.findIndex((line) => line.startsWith(mediaLine));
 
 	// If we find a line matching “m={mediaType}”
-	if (mediaLineIndex && mediaLineIndex < sdpLines.length) {
+	if (mediaLineIndex >= 0 && mediaLineIndex < sdpLines.length) {
 		// Skip the media line
 		bitrateLineIndex = mediaLineIndex + 1;
 

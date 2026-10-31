@@ -12,7 +12,7 @@
 ## [Donate to support Deskreen Open-Source](https://deskreen.com/#contribute)
 
 Deskreen is an `electron.js` based application that uses `WebRTC` to make a live stream of your computer screen to a web browser on any device. It is available for MacOS, Windows and Linux operating systems.
-The current open-source Community Edition version has limited features. If you need more features please consider upgrading to [Pro](https://deskreen.com/download) version for more features when it is released.
+This Community Edition is free, open source and runs entirely on your local network.
 
 ---
 
@@ -84,6 +84,28 @@ deskreen-ce --ip 192.168.1.100
 - **Windows:** `ipconfig` (look for IPv4 Address)
 
 When using the `--ip` or `--local-ip` flag, the app will use the specified IP for QR codes and connection URLs, while still monitoring the actual network interface status for WiFi connection detection.
+
+## Extended Display on Windows
+
+The **Extended Display** mode on Windows creates virtual monitors through the
+[Parsec Virtual Display Driver](https://github.com/nomi-san/parsec-vdd).
+
+Windows does not provide a user-mode API to create displays without a driver.
+Deskreen handles this for you: when the driver is missing, the app offers to
+install it in one click. A signed copy ships with Deskreen and is used offline;
+if it is not present, the app downloads the official installer from Parsec's
+servers. Windows asks for administrator permission once (installing a display
+driver always requires it), and the other sharing modes keep working if you
+cancel.
+
+macOS uses its own native helper and does not need the Parsec driver.
+
+While an extended display is connected, the **viewer's Video Settings** (gear
+icon) and the host **Settings → General** expose live frame rate (30/60/120 fps),
+bitrate (10–100 Mbps), resolution scale (1x/1.5x/2x) and a quality/balanced/low
+latency priority. The viewer also shows an FPS/resolution counter. Changes apply
+to the active virtual display and encoder immediately, without reconnecting the
+viewer.
 
 ## Maintainer
 

@@ -161,7 +161,12 @@ export default function ShareAppOrScreenControlGroup(
 						size={80}
 						color="white"
 					/>
-					<Text className="bp3-running-text">{t('entire-screen')}</Text>
+					<div className="share-option-copy">
+						<Text className="bp3-running-text">{t('entire-screen')}</Text>
+						<Text className="share-option-subtitle">
+							{t('share-entire-screen-subtitle')}
+						</Text>
+					</div>
 				</Button>
 				<Button
 					className={classes.shareOptionButton}
@@ -174,7 +179,12 @@ export default function ShareAppOrScreenControlGroup(
 						size={80}
 						color="white"
 					/>
-					<Text className="bp3-running-text">{t('application-window')}</Text>
+					<div className="share-option-copy">
+						<Text className="bp3-running-text">{t('application-window')}</Text>
+						<Text className="share-option-subtitle">
+							{t('share-application-window-subtitle')}
+						</Text>
+					</div>
 				</Button>
 				<Button
 					className={`${classes.shareOptionButton} ${classes.shareExtendedDisplayButton}`}
@@ -186,7 +196,12 @@ export default function ShareAppOrScreenControlGroup(
 						size={80}
 						color="white"
 					/>
-					<Text className="bp3-running-text">{t('extended-display')}</Text>
+					<div className="share-option-copy">
+						<Text className="bp3-running-text">{t('extended-display')}</Text>
+						<Text className="share-option-subtitle">
+							{t('share-extended-display-subtitle')}
+						</Text>
+					</div>
 				</Button>
 			</div>
 			<ChooseAppOrScreenOverlay

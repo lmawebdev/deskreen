@@ -15,7 +15,6 @@ export interface DeskreenGlobal {
 	sharingSessionService: SharingSessionService;
 	desktopCapturerSourcesService: DesktopCapturerSourcesService;
 	virtualDisplayService: VirtualDisplayService;
-	latestAppVersion: string;
 	currentAppVersion: string;
 	cliLocalIp?: string;
 }
@@ -37,7 +36,6 @@ export const initGlobals = (appPath: string, cliLocalIp?: string) => {
 	deskreenGlobal.virtualDisplayService = new VirtualDisplayService(
 		deskreenGlobal.desktopCapturerSourcesService,
 	);
-	deskreenGlobal.latestAppVersion = '';
 	deskreenGlobal.currentAppVersion = app.getVersion();
 	deskreenGlobal.cliLocalIp = cliLocalIp;
 };

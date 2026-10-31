@@ -1,9 +1,7 @@
+import { isProductionMode } from './runtimeEnv';
+
 export default function isProduction(): boolean {
-	return (
-		process.env.NODE_ENV === 'production' &&
-		process.env.RUN_MODE !== 'dev' &&
-		process.env.RUN_MODE !== 'test'
-	);
+	return isProductionMode();
 	// return true; // for animations and other things debugging as in production mode
 	// return false;
 }

@@ -17,6 +17,7 @@ import {
 	type VideoQualityType,
 } from '../VideoAutoQualityOptimizer/VideoQualityEnum';
 import PeerConnectionPartnerIsNotDefinedError from './errors/PeerConnectionPartnerIsNotDefinedError';
+import type { ExtendedDisplaySettings } from './ExtendedDisplaySettings';
 import PeerConnectionSocketNotDefined from './errors/PeerConnectionSocketNotDefined';
 import PeerConnectionUserIsNotDefinedError from './errors/PeerConnectionUserIsNotDefinedError';
 import NullUser from './NullUser';
@@ -101,6 +102,21 @@ export default class PeerConnection {
 	setVideoQuality(videoQuality: VideoQualityType) {
 		this.videoQuality = videoQuality;
 		this.videoQualityChangedCallback();
+	}
+
+	setExtendedDisplaySettings(settings: ExtendedDisplaySettings) {
+		if (!this.peer) return;
+
+		try {
+			this.peer.send(
+				JSON.stringify({
+					type: 'extended_display_settings',
+					payload: settings,
+				}),
+			);
+		} catch (error) {
+			console.error('failed to send extended display settings', error);
+		}
 	}
 
 	videoQualityChangedCallback() {
@@ -205,10 +221,14 @@ export default class PeerConnection {
 			config: { iceServers: [] },
 			sdpTransform: (sdp) => {
 				let newSDP = sdp;
+				// The answer SDP used to cap video at 500 kbps, which forced
+				// Chromium to downscale and drop frames even on a LAN. Allow a
+				// high ceiling; the sender's maxBitrate and WebRTC BWE still
+				// adapt to the actual network.
 				newSDP = setSdpMediaBitrate(
 					newSDP as unknown as string,
 					'video',
-					500000,
+					100000000,
 				) as unknown as typeof sdp;
 				return newSDP;
 			},

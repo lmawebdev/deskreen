@@ -2,12 +2,15 @@ import { useEffect, useRef, useCallback } from 'react';
 import { OverlayToaster, Position } from '@blueprintjs/core';
 import { useTranslation } from 'react-i18next';
 import VideoJSPlayer from '../../components/VideoJSPlayer';
+import StreamStatsOverlay from '../../components/StreamStatsOverlay';
 import PlayerControlPanel from '../../components/PlayerControlPanel';
 import {
 	COMPARISON_CANVAS_ID,
 	PLAYER_WRAPPER_ID,
 } from '../../constants/appConstants';
 import { type VideoQualityType } from '../../features/VideoAutoQualityOptimizer/VideoQualityEnum';
+import { ScreenSharingSource } from '../../features/PeerConnection/ScreenSharingSourceEnum';
+import type { ExtendedDisplaySettings } from '../../features/PeerConnection/ExtendedDisplaySettings';
 import { togglePlayerFullscreen } from '../../utils/playerFullscreen';
 
 interface PlayerViewProps {
@@ -20,6 +23,9 @@ interface PlayerViewProps {
 	videoQuality: VideoQualityType;
 	screenSharingSourceType: ScreenSharingSourceType;
 	streamUrl: MediaStream | null;
+	onExtendedDisplaySettingsChange: (
+		settings: ExtendedDisplaySettings,
+	) => void;
 }
 
 type IOSVideoElement = HTMLVideoElement & {
@@ -41,9 +47,13 @@ function PlayerView(props: PlayerViewProps) {
 		setVideoQuality,
 		videoQuality,
 		streamUrl,
+		onExtendedDisplaySettingsChange,
 	} = props;
 
 	// const player = useRef(null);
+
+	const isExtendedDisplay =
+		screenSharingSourceType === ScreenSharingSource.EXTENDED;
 
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const toasterRef = useRef<Awaited<ReturnType<typeof OverlayToaster.create>> | null>(null);
@@ -52,8 +62,9 @@ function PlayerView(props: PlayerViewProps) {
 	useEffect(() => {
 		if (!streamUrl) return;
 
-		// html5 video mode
-		if (isWithControls && videoRef.current) {
+		// html5 video mode (native video is also used for extended displays to
+		// avoid the extra buffering added by video.js).
+		if (videoRef.current) {
 			if (streamUrl instanceof MediaStream) {
 				videoRef.current.srcObject = streamUrl;
 			} else {
@@ -66,11 +77,10 @@ function PlayerView(props: PlayerViewProps) {
 		}
 
 		// video.js mode (default) doesn't need imperative src assignment here
-	}, [streamUrl, isWithControls]);
+	}, [streamUrl, isExtendedDisplay]);
 
 	useEffect(() => {
-		if (isWithControls) {
-			if (!videoRef.current) return;
+		if (videoRef.current) {
 			if (isPlaying) {
 				videoRef.current.play().catch((error) => {
 					console.error('Error playing video:', error);
@@ -80,7 +90,7 @@ function PlayerView(props: PlayerViewProps) {
 			}
 		}
 		// react-player play/pause is handled via its `playing` prop
-	}, [isPlaying, isWithControls]);
+	}, [isPlaying, isExtendedDisplay]);
 
 	// initialize toaster
 	useEffect(() => {
@@ -223,6 +233,7 @@ function PlayerView(props: PlayerViewProps) {
 				setVideoQuality={setVideoQuality}
 				selectedVideoQuality={videoQuality}
 				screenSharingSourceType={screenSharingSourceType}
+				onExtendedDisplaySettingsChange={onExtendedDisplaySettingsChange}
 			/>
 			<div
 				id="video-container"
@@ -246,7 +257,7 @@ function PlayerView(props: PlayerViewProps) {
 						backgroundColor: 'black',
 					}}
 				>
-					{isWithControls ? (
+					{isWithControls || isExtendedDisplay ? (
 						<video
 							ref={videoRef}
 							autoPlay
@@ -256,7 +267,7 @@ function PlayerView(props: PlayerViewProps) {
 							style={{
 								width: '100%',
 								height: '100%',
-								objectFit: 'contain',
+								objectFit: isExtendedDisplay ? 'cover' : 'contain',
 								backgroundColor: 'black',
 							}}
 						/>
@@ -265,8 +276,10 @@ function PlayerView(props: PlayerViewProps) {
 							stream={streamUrl}
 							playing={isPlaying}
 							containerEl={document.getElementById(PLAYER_WRAPPER_ID)}
+							fit={isExtendedDisplay ? 'cover' : 'contain'}
 						/>
 					)}
+					<StreamStatsOverlay stream={streamUrl} />
 				</div>
 				<canvas id={COMPARISON_CANVAS_ID} style={{ display: 'none' }}></canvas>
 			</div>

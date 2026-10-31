@@ -1,0 +1,305 @@
+:root {
+	--v-bg: #070b14;
+	--v-surface: rgba(15, 23, 42, 0.82);
+	--v-border: rgba(148, 163, 184, 0.16);
+	--v-text: #e2e8f0;
+	--v-muted: #94a3b8;
+	--v-accent: #22d3ee;
+	--v-accent-2: #6366f1;
+}
+
+html,
+body,
+#root {
+	height: 100%;
+}
+
+body {
+	background: var(--v-bg);
+	color: var(--v-text);
+	font-family:
+		"Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+		sans-serif;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+.viewer-connection-shell {
+	position: fixed;
+	inset: 0;
+	z-index: 10;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: flex-start;
+	gap: 24px;
+	padding: 28px 16px 40px;
+	overflow-y: auto;
+	background:
+		radial-gradient(
+			900px 500px at 50% -10%,
+			rgba(99, 102, 241, 0.28),
+			transparent 60%
+		),
+		radial-gradient(
+			700px 500px at 100% 100%,
+			rgba(34, 211, 238, 0.18),
+			transparent 60%
+		), var(--v-bg);
+}
+
+.viewer-connection-card {
+	width: min(520px, 100%);
+	margin: 0 auto;
+	padding: 30px 24px 24px;
+	text-align: center;
+	background: rgba(15, 23, 42, 0.74);
+	border: 1px solid var(--v-border);
+	border-radius: 28px;
+	box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.8);
+	backdrop-filter: blur(20px);
+}
+
+.viewer-brand-logo {
+	width: 64px;
+	height: 64px;
+	margin-bottom: 6px;
+	filter: drop-shadow(0 10px 24px rgba(34, 211, 238, 0.35));
+}
+
+.viewer-brand-title {
+	margin: 0 0 18px !important;
+	color: #f8fafc !important;
+	font-weight: 800 !important;
+	letter-spacing: -0.03em;
+}
+
+.viewer-connection-card .bp3-card {
+	background: rgba(255, 255, 255, 0.04) !important;
+	border: 1px solid var(--v-border) !important;
+	color: var(--v-text) !important;
+	border-radius: 16px !important;
+}
+
+.viewer-connection-card .bp3-card h5,
+.viewer-connection-card .bp3-card span,
+.viewer-connection-card .bp3-card p {
+	color: var(--v-muted) !important;
+}
+
+.viewer-connection-card .bp6-tag,
+.viewer-connection-card .bp3-tag {
+	color: #67e8f9 !important;
+	background: rgba(34, 211, 238, 0.14) !important;
+	border: 1px solid rgba(34, 211, 238, 0.3) !important;
+}
+
+.viewer-connection-card h4,
+.viewer-connection-card h5,
+.viewer-connection-card .bp6-text-muted,
+.viewer-connection-card .bp3-text-muted {
+	color: #cbd5e1 !important;
+}
+
+.viewer-connection-card .bp3-card h3,
+.viewer-connection-card .bp6-card h3 {
+	color: #f1f5f9 !important;
+}
+
+.viewer-connection-card .device-ip-pill .bp3-text,
+.viewer-connection-card .device-ip-pill .bp6-text {
+	color: #67e8f9 !important;
+}
+
+.viewer-prompt-text {
+	margin: 18px 0 20px;
+}
+
+.viewer-prompt-text h3 {
+	color: #e2e8f0 !important;
+	font-size: 18px !important;
+	font-weight: 600 !important;
+	letter-spacing: -0.01em;
+}
+
+.viewer-reconnect-btn {
+	padding: 10px 24px !important;
+	color: #fff !important;
+	font-weight: 700 !important;
+	border: none !important;
+	border-radius: 999px !important;
+	background: linear-gradient(135deg, #4f46e5, #06b6d4) !important;
+	box-shadow: 0 14px 34px -14px rgba(79, 70, 229, 0.85) !important;
+}
+
+.viewer-reconnect-btn:hover {
+	transform: translateY(-1px);
+	filter: brightness(1.06);
+}
+
+.viewer-control-panel {
+	color: var(--v-text) !important;
+	background: rgba(15, 23, 42, 0.86) !important;
+	border: 1px solid var(--v-border) !important;
+	border-radius: 20px !important;
+	box-shadow: 0 20px 50px -25px rgba(0, 0, 0, 0.8) !important;
+	backdrop-filter: blur(18px) saturate(140%);
+}
+
+.viewer-control-panel h3,
+.viewer-control-panel h5,
+.viewer-control-panel .bp3-text,
+.viewer-control-panel .bp3-label,
+.viewer-control-panel .bp3-control-indicator + span {
+	color: var(--v-text) !important;
+}
+
+.viewer-control-panel .bp3-divider {
+	border-color: rgba(148, 163, 184, 0.16) !important;
+}
+
+.viewer-control-panel .bp3-button.bp3-minimal {
+	color: #cbd5e1 !important;
+	border-radius: 10px !important;
+}
+
+.viewer-control-panel .bp3-button.bp3-minimal:hover {
+	background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.viewer-control-panel .bp3-button-group {
+	border-radius: 14px !important;
+	background: linear-gradient(135deg, #4f46e5, #06b6d4) !important;
+}
+
+.viewer-control-panel .bp3-html-select select {
+	color: #e2e8f0 !important;
+	background: #1e293b !important;
+	border-color: var(--v-border) !important;
+	border-radius: 10px !important;
+}
+
+.viewer-control-panel .bp3-switch .bp3-control-indicator {
+	background: rgba(255, 255, 255, 0.12) !important;
+}
+
+.bp3-popover .bp3-popover-content {
+	color: #e2e8f0 !important;
+	background: #0f172a !important;
+	border: 1px solid var(--v-border) !important;
+	border-radius: 16px !important;
+	box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.9) !important;
+}
+
+.bp3-popover .bp3-popover-arrow-fill {
+	fill: #0f172a !important;
+}
+
+.bp3-popover .bp3-button.bp3-minimal {
+	color: #cbd5e1 !important;
+}
+
+.bp3-popover .bp3-button.bp3-minimal.bp3-active {
+	color: #fff !important;
+	background: rgba(99, 102, 241, 0.25) !important;
+}
+
+.bp3-popover .bp3-html-select select {
+	color: #e2e8f0 !important;
+	background: #1e293b !important;
+	border-color: var(--v-border) !important;
+}
+
+.bp3-dialog {
+	color: #e2e8f0 !important;
+	background: #0f172a !important;
+	border: 1px solid var(--v-border) !important;
+	border-radius: 20px !important;
+}
+
+.bp3-dialog h4,
+.bp3-dialog h5,
+.bp3-dialog .bp3-text {
+	color: #e2e8f0 !important;
+}
+
+::-webkit-scrollbar {
+	width: 9px;
+	height: 9px;
+}
+
+::-webkit-scrollbar-thumb {
+	background: rgba(148, 163, 184, 0.28);
+	border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: rgba(148, 163, 184, 0.45);
+}
+
+/* Blueprint 6 (current) overrides. The legacy bp3 classes above are kept for
+   compatibility with older components. */
+.bp6-text-muted,
+.bp6-text-disabled {
+	color: var(--v-muted) !important;
+}
+
+.bp6-dialog,
+.bp6-card {
+	color: #e2e8f0 !important;
+	background: #0f172a !important;
+	border: 1px solid var(--v-border) !important;
+	border-radius: 20px !important;
+	box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.9) !important;
+}
+
+.bp6-dialog h1,
+.bp6-dialog h2,
+.bp6-dialog h3,
+.bp6-dialog h4,
+.bp6-dialog h5,
+.bp6-dialog .bp6-text {
+	color: #e2e8f0 !important;
+}
+
+.bp6-dialog .bp6-divider {
+	border-color: rgba(148, 163, 184, 0.16) !important;
+}
+
+.bp6-popover .bp6-popover-content {
+	color: #e2e8f0 !important;
+	background: #0f172a !important;
+	border: 1px solid var(--v-border) !important;
+	border-radius: 16px !important;
+	box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.9) !important;
+}
+
+.bp6-popover .bp6-popover-arrow-fill {
+	fill: #0f172a !important;
+}
+
+.bp6-button.bp6-minimal {
+	color: #cbd5e1 !important;
+	border-radius: 10px !important;
+}
+
+.bp6-button.bp6-minimal:hover {
+	background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.bp6-button.bp6-minimal.bp6-active {
+	color: #fff !important;
+	background: rgba(99, 102, 241, 0.25) !important;
+}
+
+.bp6-html-select select {
+	color: #e2e8f0 !important;
+	background: #1e293b !important;
+	border-color: var(--v-border) !important;
+	border-radius: 10px !important;
+}
+
+.bp6-switch .bp6-control-indicator {
+	background: rgba(255, 255, 255, 0.12) !important;
+}
+

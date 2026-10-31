@@ -37,13 +37,31 @@ const copyClientViewerStaticFiles = () => {
 };
 
 const copySimplePeerMinJsStaticFiles = () => {
+	const sourceFile = resolve(
+		__dirname,
+		'node_modules/simple-peer/simplepeer.min.js',
+	);
+
 	return {
 		name: 'copy-simple-peer-min-js-static-files',
-		async writeBundle() {
-			const sourceFile = resolve(
-				__dirname,
-				'node_modules/simple-peer/simplepeer.min.js',
+		// In dev the helper renderer is served by Vite, so the script tag
+		// ./assets/simplepeer.min.js must resolve to a real file. The build
+		// hook below only copies it for production.
+		configureServer(server) {
+			server.middlewares.use(
+				'/assets/simplepeer.min.js',
+				(_req, res, next) => {
+					if (!fs.existsSync(sourceFile)) {
+						next();
+						return;
+					}
+
+					res.setHeader('Content-Type', 'application/javascript');
+					fs.createReadStream(sourceFile).pipe(res);
+				},
 			);
+		},
+		async writeBundle() {
 			const destDir = resolve(__dirname, 'out/renderer/assets');
 
 			console.log(`Attempting to copy simple-peer.min.js from: ${sourceFile}`);

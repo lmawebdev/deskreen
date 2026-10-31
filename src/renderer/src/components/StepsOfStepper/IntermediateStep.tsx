@@ -92,21 +92,6 @@ export default function IntermediateStep(
 				handleNextExtendedDisplay,
 				connectedDevice,
 			)}
-			{process.env.NODE_ENV === 'production' &&
-			process.env.RUN_MODE !== 'dev' &&
-			process.env.RUN_MODE !== 'test' ? (
-				<></>
-			) : activeStep === 0 ? (
-				<Button
-					onClick={() => {
-						// connectedDevicesService.setPendingConnectionDevice(DEVICES[Math.floor(Math.random() * DEVICES.length)]);
-					}}
-				>
-					Connect Test Device
-				</Button>
-			) : (
-				<></>
-			)}
 			{activeStep !== 0 ? (
 				<Row>
 					<Col xs={12}>

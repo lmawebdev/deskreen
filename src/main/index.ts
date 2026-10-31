@@ -9,7 +9,7 @@ startConsoleRateLimiting();
 
 import { existsSync } from 'node:fs';
 import { is, optimizer } from '@electron-toolkit/utils';
-import { app, BrowserWindow, Notification, shell } from 'electron';
+import { app, BrowserWindow, screen, shell } from 'electron';
 import { join } from 'path';
 import icon from '../../resources/icon.png?asset';
 
@@ -94,7 +94,6 @@ import { getDeskreenGlobal } from './helpers/getDeskreenGlobal';
 import { initGlobals } from './helpers/initGlobals';
 import { initIpcMainHandlers } from './helpers/ipcMainHandlers';
 import MenuBuilder from './menu';
-import getNewVersionTag from './utils/getNewVersionTag';
 import installExtensions from './utils/installExtensions';
 import { startLogBufferCleanup } from './utils/LoggerWithFilePrefix';
 
@@ -116,8 +115,6 @@ export default class DeskreenApp {
 	mainWindow: BrowserWindow | null = null;
 
 	menuBuilder: MenuBuilder | null = null;
-
-	latestAppVersion = '';
 
 	initElectronAppObject(): void {
 		/**
@@ -143,8 +140,6 @@ export default class DeskreenApp {
 			startLogBufferCleanup();
 
 			await this.createWindow();
-
-			void this.checkForLatestVersionAndNotify();
 		});
 
 		app.on('browser-window-created', (_, window) => {
@@ -172,43 +167,17 @@ export default class DeskreenApp {
 			'webrtc-max-cpu-consumption-percentage',
 			'100',
 		);
-	}
 
-	private async checkForLatestVersionAndNotify(): Promise<void> {
-		try {
-			const latestAppVersion = await getNewVersionTag();
-			const deskreenGlobal = getDeskreenGlobal();
-			deskreenGlobal.latestAppVersion = latestAppVersion;
-			this.latestAppVersion = latestAppVersion;
-
-			if (
-				latestAppVersion === '' ||
-				latestAppVersion === deskreenGlobal.currentAppVersion ||
-				!Notification.isSupported()
-			) {
-				return;
-			}
-
-			this.showUpdateNotification(latestAppVersion);
-		} catch (error) {
-			console.error('Failed to check for Deskreen updates', error);
+		if (process.platform === 'win32') {
+			// Windows Graphics Capture fails to produce frames for indirect
+			// displays (Parsec VDD) on some machines: ProcessFrame returns
+			// E_FAIL and the stream freezes on the last frame. The Desktop
+			// Duplication / GDI capturer handles those displays correctly.
+			app.commandLine.appendSwitch(
+				'disable-features',
+				'WebRtcAllowWgcDesktopCapturer,WebRtcAllowWgcScreenCapturer,WebRtcAllowWgcWindowCapturer,AllowWgcCapturer,AllowWgcScreenCapturer,AllowWgcWindowCapturer',
+			);
 		}
-	}
-
-	private showUpdateNotification(latestAppVersion: string): void {
-		const deskreenGlobal = getDeskreenGlobal();
-		const notification = new Notification({
-			title: i18n.t('deskreen-ce-update-is-available'),
-			body: `${i18n.t('your-current-version-is')} ${deskreenGlobal.currentAppVersion} | ${i18n.t(
-				'click-to-download-new-updated-version',
-			)} ${latestAppVersion}`,
-		});
-
-		notification.on('click', () => {
-			void shell.openExternal('https://deskreen.com/download');
-		});
-
-		notification.show();
 	}
 
 	async createWindow(): Promise<void> {
@@ -219,16 +188,27 @@ export default class DeskreenApp {
 			await installExtensions();
 		}
 
+		const { workArea } = screen.getPrimaryDisplay();
+		const windowWidth = Math.min(960, workArea.width - 96);
+		const windowHeight = Math.min(680, workArea.height - 64);
+		const windowX = workArea.x + Math.round((workArea.width - windowWidth) / 2);
+		const windowY =
+			workArea.y + Math.round((workArea.height - windowHeight) / 2);
+
 		this.mainWindow = new BrowserWindow({
 			show: false,
-			width: 940,
-			height: 640,
-			minHeight: 460,
-			minWidth: 640,
-			titleBarStyle: 'hiddenInset',
-			frame: process.platform === 'darwin' ? false : true,
+			width: windowWidth,
+			height: windowHeight,
+			x: windowX,
+			y: windowY,
+			minHeight: 620,
+			minWidth: 900,
+			titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+			frame: true,
+			thickFrame: true,
 			useContentSize: true,
-			title: 'Deskreen CE',
+			title: 'Deskreen',
+			backgroundColor: '#eef4fb',
 			// useContentSize: true,
 			autoHideMenuBar: true,
 			...(process.platform === 'linux' ? { icon } : {}),
@@ -250,6 +230,7 @@ export default class DeskreenApp {
 			if (process.env.START_MINIMIZED === 'true') {
 				this.mainWindow.minimize();
 			} else {
+				this.mainWindow.center();
 				this.mainWindow.show();
 				this.mainWindow.focus();
 			}

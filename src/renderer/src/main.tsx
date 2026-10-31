@@ -7,6 +7,7 @@ overrideGlobalConsole();
 startConsoleRateLimiting();
 
 import './assets/main.css';
+import './assets/premium.css';
 import { createRoot } from 'react-dom/client';
 import { StrictMode, Suspense } from 'react';
 import Root from './containers/Root';

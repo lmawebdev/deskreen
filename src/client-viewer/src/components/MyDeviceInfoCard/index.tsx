@@ -30,12 +30,13 @@ function MyDeviceInfoCard(props: MyDeviceDetailsCardProps) {
 					position={Position.TOP}
 				>
 					<div
+						className="device-ip-pill"
 						style={{
-							fontWeight: 900,
-							backgroundColor: '#00f99273',
-							paddingLeft: '10px',
-							paddingRight: '10px',
-							borderRadius: '20px',
+							fontWeight: 800,
+							backgroundColor: 'rgba(34, 211, 238, 0.14)',
+							border: '1px solid rgba(34, 211, 238, 0.3)',
+							padding: '4px 10px',
+							borderRadius: '999px',
 						}}
 					>
 						<Text>{`${t('Device IP')}: ${myIP}`}</Text>

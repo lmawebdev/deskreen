@@ -6,6 +6,7 @@ import { LIGHT_UI_BACKGROUND } from './SettingsProvider';
 import DeskreenStepper from './DeskreenStepper';
 import { Device } from '../../../common/Device';
 import TopPanel from '@renderer/components/TopPanel';
+import AppTitleBar from '@renderer/components/AppTitleBar';
 import ScreenRecordingPermissionModal from '@renderer/components/ScreenRecordingPermissionModal';
 import { IpcEvents } from '../../../common/IpcEvents.enum';
 import { useScreenRecordingPermission } from '@renderer/hooks/useScreenRecordingPermission';
@@ -63,18 +64,21 @@ export default function HomePage(): React.ReactElement {
 			components={{ Toast: CustomToastWithTheme }}
 		>
 			<div className={Classes.TREE}>
+				<AppTitleBar />
 				<TopPanel handleReset={handleResetWithSharingSessionRestart} />
-				<DeskreenStepper
-					activeStep={activeStep}
-					setActiveStep={setActiveStep}
-					isAllowDeviceAlertOpen={isAllowDeviceAlertOpen}
-					setIsAllowDeviceAlertOpen={setIsAllowDeviceAlertOpen}
-					isUserAllowedConnection={isUserAllowedConnection}
-					setIsUserAllowedConnection={setIsUserAllowedConnection}
-					pendingConnectionDevice={pendingConnectionDevice}
-					setPendingConnectionDevice={setPendingConnectionDevice}
-					handleReset={handleResetWithSharingSessionRestart}
-				/>
+				<div className="app-content-shell">
+					<DeskreenStepper
+						activeStep={activeStep}
+						setActiveStep={setActiveStep}
+						isAllowDeviceAlertOpen={isAllowDeviceAlertOpen}
+						setIsAllowDeviceAlertOpen={setIsAllowDeviceAlertOpen}
+						isUserAllowedConnection={isUserAllowedConnection}
+						setIsUserAllowedConnection={setIsUserAllowedConnection}
+						pendingConnectionDevice={pendingConnectionDevice}
+						setPendingConnectionDevice={setPendingConnectionDevice}
+						handleReset={handleResetWithSharingSessionRestart}
+					/>
+				</div>
 				<ScreenRecordingPermissionModal isOpen={!hasScreenPermission} />
 			</div>
 		</ToastProvider>

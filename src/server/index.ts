@@ -140,6 +140,10 @@ class DeskreenSignalingServer {
 			pingInterval: 20000,
 			pingTimeout: 5000,
 			serveClient: false,
+			// In dev the renderer and the client-viewer run on Vite ports while
+			// the signaling server stays on 3131, so cross-origin polling needs
+			// CORS. In production the viewer is served from this same origin.
+			cors: { origin: '*' },
 		});
 
 		io.sockets.on('connection', (socket) => {

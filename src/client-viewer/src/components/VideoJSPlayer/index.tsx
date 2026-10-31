@@ -9,6 +9,7 @@ interface VideoJSPlayerProps {
 	stream: MediaStream | null;
 	playing: boolean;
 	containerEl: HTMLElement | null;
+	fit?: 'contain' | 'cover';
 }
 
 type VideoJsPlayerInstance = {
@@ -18,7 +19,7 @@ type VideoJsPlayerInstance = {
 };
 
 function VideoJSPlayer(props: VideoJSPlayerProps) {
-	const { stream, playing, containerEl } = props;
+	const { stream, playing, containerEl, fit = 'contain' } = props;
 	const videoElRef = useRef<HTMLVideoElement | null>(null);
 	const playerRef = useRef<VideoJsPlayerInstance | null>(null);
 
@@ -77,7 +78,8 @@ function VideoJSPlayer(props: VideoJSPlayerProps) {
 			if (stream instanceof MediaStream) {
 				// @ts-ignore srcObject exists on HTMLMediaElement
 				el.srcObject = stream;
-				el.style.objectFit = 'contain';
+				el.style.objectFit = fit;
+				el.classList.toggle('vjs-cover', fit === 'cover');
 				el.style.backgroundColor = 'black';
 				if (playing) {
 					// attempt play after attaching
@@ -98,7 +100,7 @@ function VideoJSPlayer(props: VideoJSPlayerProps) {
 			// eslint-disable-next-line no-console
 			console.error('Failed to attach MediaStream to element', e);
 		}
-	}, [stream, playing]);
+	}, [stream, playing, fit]);
 
 	useEffect(() => {
 		const player = playerRef.current;

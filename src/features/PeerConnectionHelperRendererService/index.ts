@@ -42,9 +42,17 @@ export default class RendererWebrtcHelpersService {
 			},
 		});
 
-		helperRendererWindow.loadURL(
-			`file://${this.appPath}/renderer/peerConnectionHelperRendererWindowIndex.html`,
-		);
+		// In development the renderer is served by Vite; in production it is a
+		// static HTML file next to the main bundle.
+		if (is.dev && process.env.ELECTRON_RENDERER_URL) {
+			helperRendererWindow.loadURL(
+				`${process.env.ELECTRON_RENDERER_URL}/peerConnectionHelperRendererWindowIndex.html`,
+			);
+		} else {
+			helperRendererWindow.loadURL(
+				`file://${this.appPath}/renderer/peerConnectionHelperRendererWindowIndex.html`,
+			);
+		}
 
 		helperRendererWindow.webContents.on('did-finish-load', () => {
 			if (!helperRendererWindow) {

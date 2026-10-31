@@ -7,9 +7,11 @@
   "homepage": "https://electron-vite.org",
   "scripts": {
     "clean": "rm -rf dist out src/client-viewer/dist",
-    "build:native:macos": "bash scripts/build-native-macos.sh",
-    "predev": "npm run build:native:macos",
-    "prebuild": "npm run build:native:macos",
+    "build:native": "node scripts/build-native.js",
+    "build:native:macos": "node scripts/build-native.js --platform=darwin",
+    "build:native:windows": "node scripts/build-native.js --platform=win32",
+    "predev": "npm run build:native && node scripts/ensure-client-viewer.js",
+    "prebuild": "npm run build:native",
     "format": "biome format --write . --max-diagnostics=none",
     "lint": "biome lint . --max-diagnostics=none",
     "lint:error-only": "biome lint --write . --max-diagnostics=none --diagnostic-level=error",
@@ -31,9 +33,9 @@
     "build:mac": "npm run build:native:macos && npm run buildClientViewer && electron-vite build && electron-builder --mac",
     "build:mac:arm64": "npm run build:native:macos && npm run buildClientViewer && electron-vite build && electron-builder --mac --arm64",
     "build:mac:x64": "npm run build:native:macos && npm run buildClientViewer && electron-vite build && electron-builder --mac --x64",
-    "build:linux": "npm run buildClientViewer && electron-vite build && electron-builder --linux",
-    "build:linux:arm64": "npm run buildClientViewer && electron-vite build && electron-builder --linux --arm64",
-    "build:linux:armv7l": "npm run buildClientViewer && electron-vite build && electron-builder --linux --armv7l"
+    "build:linux": "npm run build:native && npm run buildClientViewer && electron-vite build && electron-builder --linux",
+    "build:linux:arm64": "npm run build:native && npm run buildClientViewer && electron-vite build && electron-builder --linux --arm64",
+    "build:linux:armv7l": "npm run build:native && npm run buildClientViewer && electron-vite build && electron-builder --linux --armv7l"
   },
   "dependencies": {
     "@blueprintjs/core": "^6.3.4",

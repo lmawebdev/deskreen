@@ -1,6 +1,7 @@
 // import SuccessStep from '../components/StepsOfStepper/SuccessStep';
 
 import {
+	Alert,
 	Button,
 	Dialog,
 	H1,
@@ -8,6 +9,7 @@ import {
 	H4,
 	H5,
 	Icon,
+	Intent,
 	Spinner,
 	Text,
 } from '@blueprintjs/core';
@@ -87,16 +89,38 @@ const DeskreenStepper = ({
 	const [isSelectLanguageDialogOpen, setIsSelectLanguageDialogOpen] =
 		useState(false);
 	const [helloWord, setHelloWord] = useState('Hello');
-	const [isVirtualDisplaySupported, setIsVirtualDisplaySupported] =
+	const [virtualDisplaySupport, setVirtualDisplaySupport] = useState<{
+		supported: boolean;
+		reason?: string;
+	}>({ supported: false });
+	const [isDriverInstallDialogOpen, setIsDriverInstallDialogOpen] =
 		useState(false);
+	const [isInstallingDriver, setIsInstallingDriver] = useState(false);
 
 	useEffect(() => {
 		let cancelled = false;
 		window.electron.ipcRenderer
 			.invoke(IpcEvents.GetVirtualDisplaySupport)
-			.then((supported: boolean) => {
-				if (!cancelled) setIsVirtualDisplaySupported(Boolean(supported));
-			})
+			.then(
+				(
+					support:
+						| boolean
+						| { supported?: boolean; reason?: string }
+						| undefined,
+				) => {
+					if (cancelled) return;
+
+					if (typeof support === 'boolean') {
+						setVirtualDisplaySupport({ supported: support });
+						return;
+					}
+
+					setVirtualDisplaySupport({
+						supported: Boolean(support?.supported),
+						reason: support?.reason,
+					});
+				},
+			)
 			.catch((error) => {
 				console.error('failed to check virtual display support', error);
 			});
@@ -172,12 +196,7 @@ const DeskreenStepper = ({
 		setIsEntireScreenSelected(false);
 	}, [setActiveStep]);
 
-	const handleNextExtendedDisplay = useCallback(async (): Promise<void> => {
-		if (!isVirtualDisplaySupported) {
-			await showMessageFromNewToaster(t('extended-display-not-supported'));
-			return;
-		}
-
+	const startExtendedDisplay = useCallback(async (): Promise<void> => {
 		await window.electron.ipcRenderer.invoke(
 			IpcEvents.SetSharingType,
 			'extended',
@@ -185,7 +204,65 @@ const DeskreenStepper = ({
 		setActiveStep((prevActiveStep: number): number => prevActiveStep + 1);
 		setIsEntireScreenSelected(false);
 		setIsApplicationWindowSelected(false);
-	}, [isVirtualDisplaySupported, setActiveStep, t]);
+	}, [setActiveStep]);
+
+	const handleNextExtendedDisplay = useCallback(async (): Promise<void> => {
+		if (!virtualDisplaySupport.supported) {
+			if (virtualDisplaySupport.reason === 'driver-missing') {
+				setIsDriverInstallDialogOpen(true);
+				return;
+			}
+
+			await showMessageFromNewToaster(
+				t('extended-display-not-supported'),
+				Intent.DANGER,
+			);
+			return;
+		}
+
+		await startExtendedDisplay();
+	}, [virtualDisplaySupport, startExtendedDisplay, t]);
+
+	const handleInstallDriver = useCallback(async (): Promise<void> => {
+		if (isInstallingDriver) return;
+		setIsInstallingDriver(true);
+		try {
+			const result = (await window.electron.ipcRenderer.invoke(
+				IpcEvents.InstallVirtualDisplayDriver,
+			)) as { ok?: boolean; supported?: boolean; reason?: string } | undefined;
+
+			setIsDriverInstallDialogOpen(false);
+
+			if (result?.supported) {
+				setVirtualDisplaySupport({ supported: true });
+				await startExtendedDisplay();
+				return;
+			}
+
+			let messageKey = 'extended-display-driver-install-failed';
+			if (result?.reason === 'cancelled') {
+				messageKey = 'extended-display-driver-install-cancelled';
+			} else if (result?.reason === 'driver-not-detected') {
+				messageKey = 'extended-display-driver-install-reboot';
+			}
+
+			void showMessageFromNewToaster(t(messageKey), Intent.DANGER);
+		} catch (error) {
+			console.error('failed to install the virtual display driver', error);
+			setIsDriverInstallDialogOpen(false);
+			void showMessageFromNewToaster(
+				t('extended-display-driver-install-failed'),
+				Intent.DANGER,
+			);
+		} finally {
+			setIsInstallingDriver(false);
+		}
+	}, [isInstallingDriver, startExtendedDisplay, t]);
+
+	const handleCancelDriverInstall = useCallback((): void => {
+		if (isInstallingDriver) return;
+		setIsDriverInstallDialogOpen(false);
+	}, [isInstallingDriver]);
 
 	const handleBack = useCallback((): void => {
 		setActiveStep((prevActiveStep: number) => prevActiveStep - 1);
@@ -345,6 +422,7 @@ const DeskreenStepper = ({
 		handleBack,
 		handleNextEntireScreen,
 		handleNextApplicationWindow,
+		handleNextExtendedDisplay,
 		pendingConnectionDevice,
 		setIsUserAllowedConnection,
 		setPendingConnectionDevice,
@@ -412,6 +490,26 @@ const DeskreenStepper = ({
 					onCancel={handleCancelAlert}
 					onConfirm={handleConfirmAlert}
 				/>
+				<Alert
+					className="rounded-pill-alert"
+					isOpen={isDriverInstallDialogOpen}
+					icon="desktop"
+					intent={Intent.PRIMARY}
+					confirmButtonText={t('extended-display-install-driver')}
+					cancelButtonText={t('cancel')}
+					onCancel={handleCancelDriverInstall}
+					onConfirm={handleInstallDriver}
+					loading={isInstallingDriver}
+					canEscapeKeyCancel={!isInstallingDriver}
+					canOutsideClickCancel={!isInstallingDriver}
+					transitionDuration={0}
+					// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+					// @ts-ignore
+					usePortal={false}
+				>
+					<H4>{t('extended-display-driver-install-title')}</H4>
+					<Text>{t('extended-display-driver-install-description')}</Text>
+				</Alert>
 			</>
 			<Dialog isOpen={isNoWiFiError} autoFocus usePortal>
 				<Grid>

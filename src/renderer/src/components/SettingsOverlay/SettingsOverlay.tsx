@@ -8,7 +8,7 @@ import {
 	Icon,
 	Text,
 	TabsExpander,
-	Callout,
+	HTMLSelect,
 } from '@blueprintjs/core';
 import { Col, Row } from 'react-flexbox-grid';
 import { createStyles, makeStyles } from '@material-ui/core/styles';
@@ -17,6 +17,12 @@ import CloseOverlayButton from '../CloseOverlayButton';
 import SettingRowLabelAndInput from './SettingRowLabelAndInput';
 import LanguageSelector from '../LanguageSelector';
 import { IpcEvents } from '../../../../common/IpcEvents.enum';
+import {
+	DEFAULT_EXTENDED_DISPLAY_SETTINGS,
+	EXTENDED_DISPLAY_BITRATE_OPTIONS,
+	EXTENDED_DISPLAY_RESOLUTION_SCALES,
+	type ExtendedDisplaySettings,
+} from '../../../../common/ExtendedDisplaySettings';
 import { useTranslation } from 'react-i18next';
 import './settings-overlay.css';
 
@@ -77,29 +83,13 @@ export default function SettingsOverlay(
 	const [clientViewerPort, setClientViewerPort] = useState('80'); // Default port, can be changed later
 
 	const { handleClose, isSettingsOpen } = props;
-	const [latestVersion, setLatestVersion] = useState('');
 	const [currentVersion, setCurrentVersion] = useState('');
+	const [extendedDisplaySettings, setExtendedDisplaySettings] =
+		useState<ExtendedDisplaySettings>(DEFAULT_EXTENDED_DISPLAY_SETTINGS);
 
 	const { t } = useTranslation();
 
 	const classes = useStyles() as SettingsOverlayClassMap;
-
-	const handleOpenDownload = useCallback((): void => {
-		void window.electron.ipcRenderer.invoke(
-			IpcEvents.OpenExternalLink,
-			'https://deskreen.com/download',
-		);
-	}, []);
-
-	const handleUpdateCalloutKeyDown = useCallback(
-		(event: React.KeyboardEvent<HTMLDivElement>): void => {
-			if (event.key === 'Enter' || event.key === ' ') {
-				event.preventDefault();
-				handleOpenDownload();
-			}
-		},
-		[handleOpenDownload],
-	);
 
 	useEffect(() => {
 		window.electron.ipcRenderer
@@ -120,14 +110,6 @@ export default function SettingsOverlay(
 	}, [handleClose]);
 
 	useEffect(() => {
-		const getLatestVersion = async (): Promise<void> => {
-			const gotLatestVersion =
-				await window.electron.ipcRenderer.invoke('get-latest-version');
-			if (gotLatestVersion !== '') {
-				setLatestVersion(gotLatestVersion);
-			}
-		};
-		getLatestVersion();
 		const getCurrentVersion = async (): Promise<void> => {
 			const gotCurrentVersion = await window.electron.ipcRenderer.invoke(
 				'get-current-version',
@@ -139,33 +121,42 @@ export default function SettingsOverlay(
 		getCurrentVersion();
 	}, []);
 
-	const hasUpdate =
-		latestVersion !== '' &&
-		currentVersion !== '' &&
-		latestVersion !== currentVersion;
+	useEffect(() => {
+		window.electron.ipcRenderer
+			.invoke(IpcEvents.GetExtendedDisplaySettings)
+			.then((settings: Partial<ExtendedDisplaySettings> | undefined) => {
+				if (!settings) return;
+
+				setExtendedDisplaySettings((previous) => ({
+					frameRate: settings.frameRate ?? previous.frameRate,
+					bitrateMbps: settings.bitrateMbps ?? previous.bitrateMbps,
+					resolutionScale:
+						settings.resolutionScale ?? previous.resolutionScale,
+					priority: settings.priority ?? previous.priority,
+				}));
+			})
+			.catch((error) => {
+				console.error('failed to load extended display settings', error);
+			});
+	}, []);
+
+	const handleExtendedDisplaySettingsChange = useCallback(
+		(partial: Partial<ExtendedDisplaySettings>): void => {
+			setExtendedDisplaySettings((previous) => ({
+				...previous,
+				...partial,
+			}));
+			void window.electron.ipcRenderer.invoke(
+				IpcEvents.SetExtendedDisplaySettings,
+				partial,
+			);
+		},
+		[],
+	);
 
 	const GeneralSettingsPanel: React.FC = () => {
 		return (
 			<div style={{ width: '100%' }}>
-				{hasUpdate ? (
-					<div className={classes.updateCalloutWrapper}>
-						<Callout
-							className={classes.updateCallout}
-							icon="automatic-updates"
-							intent="success"
-							role="button"
-							tabIndex={0}
-							onClick={handleOpenDownload}
-							onKeyDown={handleUpdateCalloutKeyDown}
-						>
-							<Text style={{ fontWeight: 600 }}>
-								{t('deskreen-ce-update-is-available')}
-							</Text>
-							<Text>{`${t('your-current-version-is')} ${currentVersion}`}</Text>
-							<Text>{`${t('click-to-download-new-updated-version')} ${latestVersion}`}</Text>
-						</Callout>
-					</div>
-				) : null}
 				<Row middle="xs">
 					<H3 className="bp3-text-muted">{t('general-settings')}</H3>
 				</Row>
@@ -181,6 +172,119 @@ export default function SettingsOverlay(
 						label={t('language')}
 						input={<LanguageSelector />}
 					/>
+				</div>
+
+				<div style={{ marginTop: '24px' }}>
+					<Row middle="xs">
+						<H3 className="bp3-text-muted">
+							{t('extended-display-quality')}
+						</H3>
+					</Row>
+					<Text
+						className="bp3-text-muted"
+						style={{ fontSize: '13px', marginBottom: '12px' }}
+					>
+						{t('extended-display-quality-live-note')}
+					</Text>
+
+					<SettingRowLabelAndInput
+						icon="dashboard"
+						label={t('extended-display-frame-rate')}
+						input={
+							<HTMLSelect
+								value={extendedDisplaySettings.frameRate}
+								onChange={(event) => {
+									handleExtendedDisplaySettingsChange({
+										frameRate: Number(
+											event.currentTarget.value,
+										) as ExtendedDisplaySettings['frameRate'],
+									});
+								}}
+								options={[
+									{ value: 30, label: '30 fps' },
+									{ value: 60, label: '60 fps' },
+									{ value: 120, label: '120 fps' },
+								]}
+							/>
+						}
+					/>
+					<SettingRowLabelAndInput
+						icon="feed"
+						label={t('extended-display-bitrate')}
+						input={
+							<HTMLSelect
+								value={extendedDisplaySettings.bitrateMbps}
+								onChange={(event) => {
+									handleExtendedDisplaySettingsChange({
+										bitrateMbps: Number(event.currentTarget.value),
+									});
+								}}
+								options={EXTENDED_DISPLAY_BITRATE_OPTIONS.map(
+									(bitrate) => ({
+										value: bitrate,
+										label: `${bitrate} Mbps`,
+									}),
+								)}
+							/>
+						}
+					/>
+					<SettingRowLabelAndInput
+						icon="zoom-to-fit"
+						label={t('extended-display-resolution')}
+						input={
+							<HTMLSelect
+								value={extendedDisplaySettings.resolutionScale}
+								onChange={(event) => {
+									handleExtendedDisplaySettingsChange({
+										resolutionScale: Number(
+											event.currentTarget.value,
+										) as ExtendedDisplaySettings['resolutionScale'],
+									});
+								}}
+								options={EXTENDED_DISPLAY_RESOLUTION_SCALES.map(
+									(scale) => ({
+										value: scale,
+										label: `${scale}x`,
+									}),
+								)}
+							/>
+						}
+					/>
+					<SettingRowLabelAndInput
+						icon="lightning"
+						label={t('extended-display-priority')}
+						input={
+							<HTMLSelect
+								value={extendedDisplaySettings.priority}
+								onChange={(event) => {
+									handleExtendedDisplaySettingsChange({
+										priority: event.currentTarget
+											.value as ExtendedDisplaySettings['priority'],
+									});
+								}}
+								options={[
+									{
+										value: 'quality',
+										label: t('extended-display-priority-quality'),
+									},
+									{
+										value: 'balanced',
+										label: t('extended-display-priority-balanced'),
+									},
+									{
+										value: 'latency',
+										label: t('extended-display-priority-latency'),
+									},
+								]}
+							/>
+						}
+					/>
+					<Text
+						className="bp3-text-muted"
+						style={{ fontSize: '13px', marginTop: '6px' }}
+					>
+						{t('extended-display-bitrate-description')}
+					</Text>
 				</div>
 
 				<Row

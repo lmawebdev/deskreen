@@ -1,4 +1,5 @@
 import DesktopCapturerSourceType from '../../../../common/DesktopCapturerSourceType';
+import { IpcEvents } from '../../../../common/IpcEvents.enum';
 import type { HostPartnerConnection } from './index';
 import prepareDataMessageToSendScreenSourceType from './prepareDataMessageToSendScreenSourceType';
 
@@ -9,12 +10,34 @@ export default function handlePeerOnData(
 ): void {
 	let dataJSON: {
 		type?: string;
-		payload?: { value?: number };
+		payload?: {
+			value?: number;
+			frameRate?: number;
+			bitrateMbps?: number;
+			resolutionScale?: number;
+			priority?: string;
+		};
 	};
 	try {
 		dataJSON = JSON.parse(data);
 	} catch (error) {
 		console.error('failed to parse peer data message', error);
+		return;
+	}
+
+	if (dataJSON.type === 'extended_display_settings') {
+		const payload = dataJSON.payload;
+		if (!payload) return;
+
+		void window.electron.ipcRenderer.invoke(
+			IpcEvents.SetExtendedDisplaySettings,
+			{
+				frameRate: payload.frameRate,
+				bitrateMbps: payload.bitrateMbps,
+				resolutionScale: payload.resolutionScale,
+				priority: payload.priority,
+			},
+		);
 		return;
 	}
 
@@ -49,10 +72,14 @@ export default function handlePeerOnData(
 	}
 
 	if (dataJSON.type === 'get_sharing_source_type') {
-		const sourceID = peerConnection.isExtendedDisplayMode
-			? partner.desktopCapturerSourceID
-			: peerConnection.desktopCapturerSourceID;
+		if (peerConnection.isExtendedDisplayMode) {
+			partner.peer?.send(
+				prepareDataMessageToSendScreenSourceType('extended'),
+			);
+			return;
+		}
 
+		const sourceID = peerConnection.desktopCapturerSourceID;
 		const sourceType = sourceID.includes(DesktopCapturerSourceType.SCREEN)
 			? DesktopCapturerSourceType.SCREEN
 			: DesktopCapturerSourceType.WINDOW;

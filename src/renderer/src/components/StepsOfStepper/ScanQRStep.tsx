@@ -183,11 +183,13 @@ const ScanQRStep: React.FC = () => {
 				<Text>
 					<span
 						style={{
-							backgroundColor: '#00f99273',
-							fontWeight: 900,
-							paddingRight: '8px',
-							paddingLeft: '8px',
-							borderRadius: '20px',
+							backgroundColor: 'rgba(37, 99, 235, 0.1)',
+							color: '#1d4ed8',
+							fontWeight: 700,
+							padding: '4px 12px',
+							border: '1px solid rgba(37, 99, 235, 0.18)',
+							borderRadius: '999px',
+							display: 'inline-block',
 						}}
 					>
 						{t(
@@ -305,39 +307,6 @@ const ScanQRStep: React.FC = () => {
 					</span>
 				</Tooltip>
 			</Row>
-			{!isQrInteractive && (
-				<>
-					<Row
-						style={{
-							marginTop: '12px',
-							marginBottom: '6px',
-							display: 'flex',
-							flexDirection: 'row',
-							alignItems: 'center',
-							justifyContent: 'center',
-							textAlign: 'center',
-						}}
-					>
-						<Text className="bp3-text-muted">
-							{t('deskreen-ce-allows-only-one-client-at-same-time')}
-						</Text>
-					</Row>
-					<Row
-						style={{
-							marginBottom: '10px',
-							display: 'flex',
-							flexDirection: 'row',
-							alignItems: 'center',
-							justifyContent: 'center',
-							textAlign: 'center',
-						}}
-					>
-						<Text className="bp3-text-muted">
-							{t('this-will-be-available-only-in-pro-version')}
-						</Text>
-					</Row>
-				</>
-			)}
 
 			<Dialog
 				className={classes.bigQRCodeDialogRoot}

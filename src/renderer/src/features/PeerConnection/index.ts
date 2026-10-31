@@ -4,9 +4,18 @@ import DesktopCapturerSourceType from '../../../../common/DesktopCapturerSourceT
 import { Device } from '../../../../common/Device';
 import getAppLanguage from '../../../../common/getAppLanguage';
 import { IpcEvents } from '../../../../common/IpcEvents.enum';
+import {
+	DEFAULT_EXTENDED_DISPLAY_SETTINGS,
+	type ExtendedDisplaySettings,
+	normalizeExtendedDisplayBitrate,
+	normalizeExtendedDisplayFrameRate,
+	normalizeExtendedDisplayPriority,
+	normalizeExtendedDisplayResolutionScale,
+} from '../../../../common/ExtendedDisplaySettings';
 import { LocalPeerUser } from '../../../../common/LocalPeerUser';
 import type { SendEncryptedMessagePayload } from '../../../../common/SendEncryptedMessagePayload';
 import { handleRecieveEncryptedMessage } from '../../utils/handleRecieveEncryptedMessage';
+import { isTestMode } from '../../../../common/runtimeEnv';
 import { prepare as prepareMessage } from '../../utils/message';
 import createDesktopCapturerStream from './createDesktopCapturerStream';
 import getDesktopSourceStreamBySourceID from './getDesktopSourceStreamBySourceID';
@@ -60,6 +69,7 @@ export default class PeerConnection {
 	isExtendedDisplayMode = false;
 	isDestroyed = false;
 	isReplacingSharedTrack = false;
+	private readonly senderStatsStarted = new WeakSet<HostPartnerConnection>();
 	onDeviceConnectedCallback: (device: Device) => void;
 	displayID: string;
 	sourceDisplaySize: DisplaySize | undefined;
@@ -88,7 +98,21 @@ export default class PeerConnection {
 			this.socket.emit('USER_DISCONNECT');
 		};
 		window.addEventListener('beforeunload', this.beforeunloadHandler);
+
+		window.electron.ipcRenderer.on(
+			IpcEvents.ExtendedDisplaySettingsChanged,
+			this.handleExtendedDisplaySettingsChanged,
+		);
 	}
+
+	private readonly handleExtendedDisplaySettingsChanged = (
+		_event: unknown,
+		settings: ExtendedDisplaySettings,
+	): void => {
+		for (const partner of this.partners.values()) {
+			void this.configurePeerForHighQuality(partner, settings);
+		}
+	};
 
 	notifyClientWithNewLanguage(): void {
 		setTimeout(async () => {
@@ -250,7 +274,19 @@ export default class PeerConnection {
 		});
 
 		const capture = (async (): Promise<void> => {
-			const stream = await getDesktopSourceStreamBySourceID(sourceID);
+			// Constrain the capture to the virtual display size. Without
+			// dimensions Chromium picks a default (often 1920px wide) and the
+			// track aspect no longer matches the monitor.
+			const frameRate = (await this.getExtendedDisplaySettings()).frameRate;
+			const stream = await getDesktopSourceStreamBySourceID(
+				sourceID,
+				partner.displayWidth || undefined,
+				partner.displayHeight || undefined,
+				1,
+				1,
+				Math.min(15, frameRate),
+				frameRate,
+			);
 			await this.applyPartnerStream(partner, stream);
 		})();
 
@@ -283,6 +319,10 @@ export default class PeerConnection {
 			newStream.getTracks().forEach((track) => track.stop());
 			return;
 		}
+
+		// Screen content must keep text/detail sharp. Without a content hint
+		// the encoder may prioritize motion and blur small text.
+		newTrack.contentHint = 'text';
 
 		const oldStream = partner.localStream;
 		const oldTrack = partner.currentTrack;
@@ -339,6 +379,157 @@ export default class PeerConnection {
 				if (track.id !== newTrack.id) track.stop();
 			});
 		}
+
+		void this.configurePeerForHighQuality(partner);
+	}
+
+	/**
+	 * Extended displays are captured at their native (often portrait) size.
+	 * Without explicit encoder parameters Chromium may downscale the track and
+	 * the viewer ends up seeing a blurry upscaled image. Ask the sender to keep
+	 * the native resolution and allow a high bitrate on the LAN.
+	 */
+	private async getExtendedDisplaySettings(): Promise<ExtendedDisplaySettings> {
+		try {
+			const raw = (await window.electron.ipcRenderer.invoke(
+				IpcEvents.GetExtendedDisplaySettings,
+			)) as Partial<ExtendedDisplaySettings> | undefined;
+
+			return {
+				frameRate: normalizeExtendedDisplayFrameRate(raw?.frameRate),
+				bitrateMbps: normalizeExtendedDisplayBitrate(raw?.bitrateMbps),
+				resolutionScale: normalizeExtendedDisplayResolutionScale(
+					raw?.resolutionScale,
+				),
+				priority: normalizeExtendedDisplayPriority(raw?.priority),
+			};
+		} catch (error) {
+			console.error('failed to read extended display settings', error);
+			return { ...DEFAULT_EXTENDED_DISPLAY_SETTINGS };
+		}
+	}
+
+	private startSenderStats(partner: HostPartnerConnection): void {
+		const peer = partner.peer as unknown as
+			| { _pc?: RTCPeerConnection }
+			| null;
+		const pc = peer?._pc;
+		if (!pc) return;
+
+		let remaining = 6;
+		const timer = setInterval(async () => {
+			try {
+				const stats = await pc.getStats();
+				stats.forEach((report) => {
+					const outbound = report as RTCOutboundRtpStreamStats & {
+						kind?: string;
+					};
+
+					if (outbound.type !== 'outbound-rtp' || outbound.kind !== 'video') {
+						return;
+					}
+
+					window.electron.ipcRenderer.send('virtual-display-error', {
+						event: 'sender-stats',
+						deviceID: partner.deviceID,
+						frameWidth: outbound.frameWidth,
+						frameHeight: outbound.frameHeight,
+						framesPerSecond: outbound.framesPerSecond,
+						qualityLimitationReason: outbound.qualityLimitationReason,
+						qualityLimitationResolutionChanges:
+							outbound.qualityLimitationResolutionChanges,
+					});
+				});
+			} catch {
+				// stats are best-effort diagnostics
+			}
+
+			remaining -= 1;
+			if (remaining <= 0) clearInterval(timer);
+		}, 3000);
+	}
+
+	async configurePeerForHighQuality(
+		partner: HostPartnerConnection,
+		settingsOverride?: ExtendedDisplaySettings,
+	): Promise<void> {
+		const peer = partner.peer as unknown as
+			| { _pc?: RTCPeerConnection }
+			| null;
+		const pc = peer?._pc;
+		if (!pc) return;
+
+		const settings =
+			settingsOverride ?? (await this.getExtendedDisplaySettings());
+		const frameRate = settings.frameRate;
+		const contentHint =
+			settings.priority === 'quality'
+				? 'text'
+				: settings.priority === 'latency'
+					? 'motion'
+					: 'detail';
+		const degradationPreference =
+			settings.priority === 'quality'
+				? 'maintain-resolution'
+				: settings.priority === 'latency'
+					? 'maintain-framerate'
+					: 'balanced';
+
+		for (const track of partner.localStream?.getVideoTracks() ??
+			[]) {
+			track.contentHint = contentHint;
+		}
+
+		const apply = async (): Promise<boolean> => {
+			const sender = pc
+				.getSenders()
+				.find((candidate) => candidate.track?.kind === 'video');
+			if (!sender) return false;
+
+			try {
+				const params = sender.getParameters();
+				if (!params.encodings || params.encodings.length === 0) {
+					params.encodings = [{}];
+				}
+
+				params.encodings[0].maxBitrate =
+					settings.bitrateMbps * 1_000_000;
+				params.encodings[0].maxFramerate = frameRate;
+				params.encodings[0].scaleResolutionDownBy = 1;
+				params.degradationPreference = degradationPreference;
+				await sender.setParameters(params);
+
+				window.electron.ipcRenderer.send('virtual-display-error', {
+					event: 'sender-configured',
+					deviceID: partner.deviceID,
+					maxBitrate: params.encodings[0].maxBitrate,
+					maxFramerate: params.encodings[0].maxFramerate,
+					scaleResolutionDownBy:
+						params.encodings[0].scaleResolutionDownBy,
+					degradationPreference: params.degradationPreference,
+					contentHint,
+				});
+				return true;
+			} catch (error) {
+				console.error('failed to configure the video sender', error);
+				return false;
+			}
+		};
+
+		if (!(await apply())) {
+			setTimeout(() => {
+				void apply();
+			}, 1000);
+		}
+
+		setTimeout(() => {
+			void apply();
+		}, 3000);
+
+		if (!this.senderStatsStarted.has(partner)) {
+			this.senderStatsStarted.add(partner);
+			this.startSenderStats(partner);
+		}
 	}
 
 	async replacePartnerVideoTrackWithQuality(
@@ -389,7 +580,7 @@ export default class PeerConnection {
 	async setDesktopCapturerSourceID(id: string): Promise<void> {
 		if (this.isExtendedDisplayMode) return;
 		this.desktopCapturerSourceID = id;
-		if (process.env.RUN_MODE === 'test') return;
+		if (isTestMode()) return;
 
 		// clear old display size when switching sources to ensure new source uses correct dimensions
 		this.sourceDisplaySize = undefined;
@@ -670,7 +861,7 @@ export default class PeerConnection {
 	}
 
 	async callPeer(deviceID?: string): Promise<void> {
-		if (process.env.RUN_MODE === 'test') return;
+		if (isTestMode()) return;
 
 		for (const partner of this.resolveTargets(deviceID)) {
 			this.hasStartedSharing = true;

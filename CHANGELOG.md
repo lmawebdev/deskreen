@@ -5,6 +5,10 @@ Changes:
 - allow up to 3 screen-viewing devices to connect to the same sharing session simultaneously
 - disconnect individual viewers without interrupting the others
 - keep the QR code pointing to the active sharing room for replacement viewers
+- add extended display support on Windows through the Parsec Virtual Display Driver, installing the driver in-app with a single UAC confirmation and live frame rate, bitrate, resolution and low-latency controls from the viewer
+- remove Google Analytics and all analytics/consent code from the viewer
+- remove the Deskreen Pro button, update prompts and external version checks
+- refresh the desktop app and viewer with a premium, modern interface
 
 <br/>
 <br/>

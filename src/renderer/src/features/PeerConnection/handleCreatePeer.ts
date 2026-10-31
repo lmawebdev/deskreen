@@ -1,5 +1,6 @@
 import handlePeerOnData from './handlePeerOnData';
 import type { HostPartnerConnection } from './index';
+import setSdpMediaBitrate from './setSdpMediaBitrate';
 
 type SimplePeerInstance = InstanceType<typeof import('simple-peer')>;
 
@@ -18,16 +19,22 @@ export default function handleCreatePeer(
 		const peer = new SimplePeer({
 			initiator: true,
 			config: { iceServers: [] },
+			sdpTransform: (sdp: string) =>
+				setSdpMediaBitrate(sdp, 'video', 100000000),
 		}) as SimplePeerInstance;
 
 		partner.peer = peer;
 
 		const stream = peerConnection.getStreamForPartner(partner);
 		if (stream !== null) {
+			stream.getVideoTracks().forEach((track) => {
+				track.contentHint = 'text';
+			});
 			peer.addStream(stream);
 			partner.hasStream = true;
 			partner.stream = stream;
 			partner.currentTrack = stream.getVideoTracks()[0] ?? null;
+			void peerConnection.configurePeerForHighQuality(partner);
 		}
 
 		peer.on('signal', (data: unknown) => {
@@ -45,6 +52,10 @@ export default function handleCreatePeer(
 			} else {
 				partner.signals.push(data);
 			}
+		});
+
+		peer.on('connect', () => {
+			void peerConnection.configurePeerForHighQuality(partner);
 		});
 
 		peer.on('data', (data: string) => {

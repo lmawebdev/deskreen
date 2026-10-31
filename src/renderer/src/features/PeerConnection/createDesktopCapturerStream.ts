@@ -1,4 +1,5 @@
 import DesktopCapturerSourceType from '../../../../common/DesktopCapturerSourceType';
+import { isTestMode } from '../../../../common/runtimeEnv';
 import getDesktopSourceStreamBySourceID from './getDesktopSourceStreamBySourceID';
 
 export default async function createDesktopCapturerStream(
@@ -6,7 +7,7 @@ export default async function createDesktopCapturerStream(
 	sourceID: string,
 ): Promise<void> {
 	try {
-		if (process.env.RUN_MODE === 'test') return;
+		if (isTestMode()) return;
 
 		if (sourceID.includes(DesktopCapturerSourceType.SCREEN)) {
 			const stream = await getDesktopSourceStreamBySourceID(

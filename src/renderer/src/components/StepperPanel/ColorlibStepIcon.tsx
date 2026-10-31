@@ -11,9 +11,9 @@ export interface StepIconPropsDeskreen extends StepIconProps {
 
 const useColorlibStepIconStyles = makeStyles({
 	root: {
-		backgroundColor: '#BFCCD6',
+		backgroundColor: 'rgba(37, 99, 235, 0.12)',
 		zIndex: 1,
-		color: '#5C7080',
+		color: '#2563eb',
 		width: 65,
 		height: 65,
 		display: 'flex',
@@ -23,12 +23,12 @@ const useColorlibStepIconStyles = makeStyles({
 	},
 	active: {
 		backgroundImage:
-			'linear-gradient( 136deg, #FFB366 0%, #F29D49 50%, #A66321 100%)',
-		boxShadow: '0 4px 10px 0 rgba(0,0,0,.25)',
+			'linear-gradient(136deg, #2563eb 0%, #0ea5e9 55%, #06b6d4 100%)',
+		boxShadow: '0 10px 24px -8px rgba(37, 99, 235, 0.75)',
 	},
 	completed: {
 		backgroundImage:
-			'linear-gradient( 136deg, #3DCC91 0%, #15B371 50%, #0E5A8A 100%)',
+			'linear-gradient(136deg, #0f766e 0%, #14b8a6 55%, #22d3ee 100%)',
 	},
 	stepContent: {},
 });
