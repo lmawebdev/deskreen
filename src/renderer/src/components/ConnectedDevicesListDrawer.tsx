@@ -1,23 +1,23 @@
-import { useEffect, useState, useCallback } from 'react';
 import {
-	Button,
-	Text,
-	Position,
-	Drawer,
-	Card,
 	Alert,
-	H4,
+	Button,
+	Card,
+	Drawer,
 	DrawerSize,
+	H4,
+	Position,
+	Text,
 } from '@blueprintjs/core';
-import { Row, Col } from 'react-flexbox-grid';
 import { createStyles, makeStyles } from '@material-ui/core/styles';
-import CloseOverlayButton from './CloseOverlayButton';
-import DeviceInfoCallout from './DeviceInfoCallout';
-import SharingSourcePreviewCard from './SharingSourcePreviewCard';
+import { useCallback, useEffect, useState } from 'react';
+import { Col, Row } from 'react-flexbox-grid';
+import { useTranslation } from 'react-i18next';
 import { Device } from '../../../common/Device';
 import { IpcEvents } from '../../../common/IpcEvents.enum';
 import isProduction from '../../../common/isProduction';
-import { useTranslation } from 'react-i18next';
+import CloseOverlayButton from './CloseOverlayButton';
+import DeviceInfoCallout from './DeviceInfoCallout';
+import SharingSourcePreviewCard from './SharingSourcePreviewCard';
 
 type DeviceWithDesktopCapturerSourceId = Device & {
 	desktopCapturerSourceId: string;
@@ -102,10 +102,8 @@ export default function ConnectedDevicesListDrawer(
 		async (id: string) => {
 			const device = connectedDevices.find((d: Device) => d.id === id);
 			if (!device) return;
-			await window.electron.ipcRenderer.invoke(
-				IpcEvents.DisconnectPeerAndDestroySharingSessionBySessionID,
-				device.sharingSessionID,
-			);
+			// Only this viewer is disconnected; the rest of the session keeps
+			// streaming to the other connected devices.
 			await window.electron.ipcRenderer.invoke(
 				IpcEvents.DisconnectDeviceById,
 				device.id,

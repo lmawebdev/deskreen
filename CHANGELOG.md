@@ -1,3 +1,14 @@
+# Unreleased
+
+Changes:
+
+- allow up to 3 screen-viewing devices to connect to the same sharing session simultaneously
+- disconnect individual viewers without interrupting the others
+- keep the QR code pointing to the active sharing room for replacement viewers
+
+<br/>
+<br/>
+
 # 1.0.11 (8 Mar 2021)
 
 Changes:

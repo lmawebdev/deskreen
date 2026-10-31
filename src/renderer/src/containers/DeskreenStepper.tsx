@@ -1,10 +1,5 @@
 // import SuccessStep from '../components/StepsOfStepper/SuccessStep';
-import React, { useState, useCallback, useEffect, ReactNode } from 'react';
-import { makeStyles, createStyles } from '@material-ui/core/styles';
-import Stepper from '@material-ui/core/Stepper';
-import Step from '@material-ui/core/Step';
-import StepLabel from '@material-ui/core/StepLabel';
-import { Row, Col, Grid } from 'react-flexbox-grid';
+
 import {
 	Button,
 	Dialog,
@@ -16,20 +11,26 @@ import {
 	Spinner,
 	Text,
 } from '@blueprintjs/core';
-import IntermediateStep from '@renderer/components/StepsOfStepper/IntermediateStep';
+import Step from '@material-ui/core/Step';
+import StepLabel from '@material-ui/core/StepLabel';
+import Stepper from '@material-ui/core/Stepper';
+import { createStyles, makeStyles } from '@material-ui/core/styles';
+import AllowConnectionForDeviceAlert from '@renderer/components/AllowConnectionForDeviceAlert';
+import LanguageSelector from '@renderer/components/LanguageSelector';
 import ColorlibConnector from '@renderer/components/StepperPanel/ColorlibConnector';
-import { Device } from '../../../common/Device';
 import ColorlibStepIcon, {
 	StepIconPropsDeskreen,
 } from '@renderer/components/StepperPanel/ColorlibStepIcon';
-import LanguageSelector from '@renderer/components/LanguageSelector';
-import { getShuffledArrayOfHello } from '@renderer/configs/i18next.config.client';
-import { IpcEvents } from '../../../common/IpcEvents.enum';
 import DeviceConnectedInfoButton from '@renderer/components/StepperPanel/DeviceConnectedInfoButton';
-import AllowConnectionForDeviceAlert from '@renderer/components/AllowConnectionForDeviceAlert';
-import { useTranslation } from 'react-i18next';
-import { TFunction } from 'i18next';
+import IntermediateStep from '@renderer/components/StepsOfStepper/IntermediateStep';
+import { getShuffledArrayOfHello } from '@renderer/configs/i18next.config.client';
 import { showMessageFromNewToaster } from '@renderer/utils/showMessageFromNewToaster';
+import { TFunction } from 'i18next';
+import React, { ReactNode, useCallback, useEffect, useState } from 'react';
+import { Col, Grid, Row } from 'react-flexbox-grid';
+import { useTranslation } from 'react-i18next';
+import { Device } from '../../../common/Device';
+import { IpcEvents } from '../../../common/IpcEvents.enum';
 
 const useStyles = makeStyles(() =>
 	createStyles({
@@ -156,8 +157,19 @@ const DeskreenStepper = ({
 
 	const handleCancelAlert = async (): Promise<void> => {
 		setIsAllowDeviceAlertOpen(false);
-		setActiveStep(0);
+
+		const result = (await window.electron.ipcRenderer.invoke(
+			IpcEvents.DenyPendingConnectionDevice,
+		)) as { isFirstViewer?: boolean } | undefined;
+
 		setPendingConnectionDevice(null);
+
+		if (!result?.isFirstViewer) {
+			// Additional viewers are denied without restarting the stepper.
+			return;
+		}
+
+		setActiveStep(0);
 		setIsUserAllowedConnection(false);
 
 		await window.electron.ipcRenderer.invoke(
@@ -170,12 +182,35 @@ const DeskreenStepper = ({
 
 	const handleConfirmAlert = useCallback(async () => {
 		setIsAllowDeviceAlertOpen(false);
-		setIsUserAllowedConnection(true);
-		handleNext();
-		await window.electron.ipcRenderer.invoke(
+
+		const result = (await window.electron.ipcRenderer.invoke(
 			IpcEvents.SetDeviceConnectedStatus,
-		);
-	}, [handleNext, setIsAllowDeviceAlertOpen, setIsUserAllowedConnection]);
+		)) as { isFirstViewer?: boolean; connected?: boolean } | undefined;
+
+		if (result?.isFirstViewer) {
+			setIsUserAllowedConnection(true);
+			// The alert can reappear after the host already left the first step
+			// (for example the first viewer reconnected). Only advance from the
+			// QR step.
+			if (activeStep === 0) {
+				handleNext();
+			}
+			return;
+		}
+
+		// Additional viewers keep the host in the current step; the shared
+		// stream is already running for them.
+		setPendingConnectionDevice(null);
+		if (result?.connected) {
+			setIsUserAllowedConnection(true);
+		}
+	}, [
+		activeStep,
+		handleNext,
+		setIsAllowDeviceAlertOpen,
+		setIsUserAllowedConnection,
+		setPendingConnectionDevice,
+	]);
 
 	useEffect(() => {
 		window.electron.ipcRenderer.invoke(
@@ -203,16 +238,54 @@ const DeskreenStepper = ({
 		};
 	}, [setIsAllowDeviceAlertOpen, setPendingConnectionDevice]);
 
+	useEffect(() => {
+		const handleSharingSessionClosed = (): void => {
+			setActiveStep(0);
+			setPendingConnectionDevice(null);
+			setIsUserAllowedConnection(false);
+			setIsAllowDeviceAlertOpen(false);
+		};
+
+		window.electron.ipcRenderer.on(
+			IpcEvents.SharingSessionClosed,
+			handleSharingSessionClosed,
+		);
+
+		return () => {
+			window.electron.ipcRenderer.removeListener(
+				IpcEvents.SharingSessionClosed,
+				handleSharingSessionClosed,
+			);
+		};
+	}, [
+		setActiveStep,
+		setIsAllowDeviceAlertOpen,
+		setIsUserAllowedConnection,
+		setPendingConnectionDevice,
+	]);
+
 	const handleUserClickedDeviceDisconnectButton =
 		useCallback(async (): Promise<void> => {
-			handleReset();
+			if (pendingConnectionDevice?.id) {
+				await window.electron.ipcRenderer.invoke(
+					IpcEvents.DisconnectDeviceById,
+					pendingConnectionDevice.id,
+				);
+			}
+			setPendingConnectionDevice(null);
+			setIsUserAllowedConnection(false);
 
 			await showMessageFromNewToaster(
 				t(
 					'device-is-successfully-disconnected-by-you-you-can-connect-a-new-device',
 				),
 			);
-		}, [handleReset, t]);
+		}, [
+			pendingConnectionDevice,
+			setPendingConnectionDevice,
+			setIsUserAllowedConnection,
+			t,
+		]);
 
 	const renderIntermediateOrSuccessStepContent = useCallback(() => {
 		return (
