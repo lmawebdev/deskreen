@@ -1,5 +1,5 @@
 import os from 'os';
-import { interfacesToCheck, interfacesStartsWithCheck } from './getMyLocalIpV4';
+import { interfacesStartsWithCheck, interfacesToCheck } from './getMyLocalIpV4';
 
 export default function isWifiConnected(): boolean {
 	const networkInterfaces = os.networkInterfaces();

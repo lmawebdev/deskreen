@@ -1,6 +1,6 @@
-import { Row, Col } from 'react-flexbox-grid';
-import SharingSourcePreviewCard from '../../SharingSourcePreviewCard';
+import { Col, Row } from 'react-flexbox-grid';
 import { IpcEvents } from '../../../../../common/IpcEvents.enum';
+import SharingSourcePreviewCard from '../../SharingSourcePreviewCard';
 
 interface PreviewGridListProps {
 	viewSharingIds: string[];

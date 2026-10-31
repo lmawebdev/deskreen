@@ -1,20 +1,20 @@
-import React, { useEffect, useMemo, useState } from 'react';
 import {
 	Button,
+	Classes,
+	Dialog,
+	H3,
+	Position,
 	Text,
 	Tooltip,
-	Position,
-	Dialog,
-	Classes,
-	H3,
 } from '@blueprintjs/core';
+import { createStyles, makeStyles } from '@material-ui/core';
 import { QRCodeSVG } from 'qrcode.react';
-import { makeStyles, createStyles } from '@material-ui/core';
-import { Row, Col } from 'react-flexbox-grid';
-import isProduction from '../../../../common/isProduction';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Col, Row } from 'react-flexbox-grid';
+import { useTranslation } from 'react-i18next';
 import config from '../../../../common/config';
 import { IpcEvents } from '../../../../common/IpcEvents.enum';
-import { useTranslation } from 'react-i18next';
+import isProduction from '../../../../common/isProduction';
 import Logo192 from '../../assets/logo192.png';
 
 const { hostname } = config;

@@ -53,6 +53,14 @@ export type DisconnectByHostMachineUserMessageWithPayload = {
 	payload: Record<string, unknown>;
 };
 
+export type ScreenSizeChangedMessageWithPayload = {
+	type: 'SCREEN_SIZE_CHANGED';
+	payload: {
+		width: number;
+		height: number;
+	};
+};
+
 export type ProcessedMessage =
 	| CallAcceptedMessageWithPayload
 	| CallUserMessageWithPayload
@@ -61,7 +69,8 @@ export type ProcessedMessage =
 	| AppLanguageMessageWithPayload
 	| DenyToConnectMessageWithPayload
 	| AllowedToConnectMessageWithPayload
-	| DisconnectByHostMachineUserMessageWithPayload;
+	| DisconnectByHostMachineUserMessageWithPayload
+	| ScreenSizeChangedMessageWithPayload;
 
 function getSenderUsername(payload: ReceiveEncryptedMessagePayload): string {
 	const username = payload.payload?.username;
@@ -156,5 +165,16 @@ export const handleRecieveEncryptedMessage = async (
 			},
 			senderUsername,
 		);
+	}
+
+	if (message.type === 'SCREEN_SIZE_CHANGED') {
+		const partner = peerConnection.getPartnerByUsername(senderUsername);
+		if (partner?.deviceID) {
+			window.electron.ipcRenderer.send('partner-screen-size-changed', {
+				deviceID: partner.deviceID,
+				width: message.payload.width,
+				height: message.payload.height,
+			});
+		}
 	}
 };

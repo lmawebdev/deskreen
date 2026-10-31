@@ -1,12 +1,12 @@
-import React from 'react';
 import { Button, Text } from '@blueprintjs/core';
+import React from 'react';
 import { Col, Row } from 'react-flexbox-grid';
 import { useTranslation } from 'react-i18next';
-import ScanQRStep from './ScanQRStep';
-import ChooseAppOrScreenStep from './ChooseAppOrScreenStep';
-import ConfirmStep from './ConfirmStep';
 import { Device } from '../../../../common/Device';
 import { IpcEvents } from '../../../../common/IpcEvents.enum';
+import ChooseAppOrScreenStep from './ChooseAppOrScreenStep';
+import ConfirmStep from './ConfirmStep';
+import ScanQRStep from './ScanQRStep';
 
 interface IntermediateStepProps {
 	activeStep: number;
@@ -14,8 +14,7 @@ interface IntermediateStepProps {
 	handleBack: () => void;
 	handleNextEntireScreen: () => void;
 	handleNextApplicationWindow: () => void;
-	resetPendingConnectionDevice: () => void;
-	resetUserAllowedConnection: () => void;
+	handleNextExtendedDisplay: () => void;
 	connectedDevice: Device | null;
 	handleReset: () => void;
 }
@@ -25,6 +24,7 @@ function getStepContent(
 	stepIndex: number,
 	handleNextEntireScreen: () => void,
 	handleNextApplicationWindow: () => void,
+	handleNextExtendedDisplay: () => void,
 	connectedDevice: Device | null,
 ): React.ReactNode {
 	switch (stepIndex) {
@@ -35,14 +35,13 @@ function getStepContent(
 				<>
 					<Row center="xs">
 						<div style={{ marginBottom: '10px' }}>
-							<Text>
-								{t('choose-entire-screen-or-app-window-you-want-to-share')}
-							</Text>
+							<Text>{t('choose-sharing-mode')}</Text>
 						</div>
 					</Row>
 					<ChooseAppOrScreenStep
 						handleNextEntireScreen={handleNextEntireScreen}
 						handleNextApplicationWindow={handleNextApplicationWindow}
+						handleNextExtendedDisplay={handleNextExtendedDisplay}
 					/>
 				</>
 			);
@@ -68,8 +67,7 @@ export default function IntermediateStep(
 		handleBack,
 		handleNextEntireScreen,
 		handleNextApplicationWindow,
-		resetPendingConnectionDevice,
-		resetUserAllowedConnection,
+		handleNextExtendedDisplay,
 		connectedDevice,
 		handleReset,
 	} = props;
@@ -91,6 +89,7 @@ export default function IntermediateStep(
 				activeStep,
 				handleNextEntireScreen,
 				handleNextApplicationWindow,
+				handleNextExtendedDisplay,
 				connectedDevice,
 			)}
 			{process.env.NODE_ENV === 'production' &&
@@ -115,11 +114,11 @@ export default function IntermediateStep(
 							intent={activeStep === 2 ? 'success' : 'none'}
 							onClick={async () => {
 								if (isConfirmStep(activeStep, steps)) {
-									window.electron.ipcRenderer.invoke(
+									await window.electron.ipcRenderer.invoke(
 										IpcEvents.StartSharingOnWaitingForConnectionSharingSession,
 									);
-									resetPendingConnectionDevice();
-									resetUserAllowedConnection();
+									setTimeout(() => handleReset(), 300);
+									return;
 								}
 								setTimeout(() => {
 									handleReset();

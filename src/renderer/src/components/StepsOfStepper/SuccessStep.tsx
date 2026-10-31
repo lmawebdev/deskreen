@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect } from 'react';
 import { Button, H5, Icon, Text } from '@blueprintjs/core';
-import { Row, Col } from 'react-flexbox-grid';
+import React, { useCallback, useEffect } from 'react';
+import { Col, Row } from 'react-flexbox-grid';
 import { useTranslation } from 'react-i18next';
 
 interface SuccessStepProps {

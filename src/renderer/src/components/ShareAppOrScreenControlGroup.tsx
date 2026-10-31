@@ -1,61 +1,55 @@
-import { useState, useCallback, useEffect } from 'react';
-import { Button, Icon, ControlGroup, Text } from '@blueprintjs/core';
+import { Button, Icon, Text } from '@blueprintjs/core';
 import { createStyles, makeStyles } from '@material-ui/core/styles';
-import ChooseAppOrScreenOverlay from './StepsOfStepper/ChooseAppOrScreenOverlay/ChooseAppOrScreenOverlay';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IpcEvents } from '../../../common/IpcEvents.enum';
+import ChooseAppOrScreenOverlay from './StepsOfStepper/ChooseAppOrScreenOverlay/ChooseAppOrScreenOverlay';
 
 interface ShareAppOrScreenControlGroupProps {
 	handleNextEntireScreen: () => void;
 	handleNextApplicationWindow: () => void;
+	handleNextExtendedDisplay: () => void;
 }
 
 const useStyles = makeStyles(() =>
 	createStyles({
 		controlGroupRoot: {
-			width: '500px',
 			display: 'flex',
-			position: 'relative',
-			left: '20px',
+			justifyContent: 'center',
+			alignItems: 'stretch',
+			gap: '12px',
+			flexWrap: 'wrap',
 		},
-		shareEntireScreenButton: {
+		shareOptionButton: {
 			height: '180px',
-			width: '50%',
+			width: '180px',
+			borderRadius: '20px !important',
 			color: 'white',
-			fontSize: '20px',
-			borderRadius: '20px 0px 0px 20px !important',
+			fontSize: '18px',
 			textAlign: 'center',
+			display: 'flex',
+			flexDirection: 'column',
+			justifyContent: 'center',
+			alignItems: 'center',
 		},
-		shareEntireScreenButtonIcon: { marginBottom: '20px' },
-		shareAppButton: {
-			height: '180px',
-			width: '50%',
-			borderRadius: '0px 20px 20px 0px !important',
-			color: 'white',
-			fontSize: '20px',
-			textAlign: 'center',
-			backgroundColor: '#48AFF0 !important',
+		shareExtendedDisplayButton: {
+			backgroundColor: '#7c5cff !important',
 			'&:hover': {
-				backgroundColor: '#4097ce !important',
+				backgroundColor: '#6b4be6 !important',
 			},
 		},
-		shareAppButtonIcon: { marginBottom: '20px' },
-		orDecorationButton: {
-			height: '38px',
-			width: '40px',
-			borderRadius: '100px !important',
-			position: 'relative',
-			top: '70px',
-			left: '-190px !important',
-			cursor: 'default',
-		},
+		shareOptionIcon: { marginBottom: '16px' },
 	}),
 );
 
 export default function ShareAppOrScreenControlGroup(
 	props: ShareAppOrScreenControlGroupProps,
 ) {
-	const { handleNextEntireScreen, handleNextApplicationWindow } = props;
+	const {
+		handleNextEntireScreen,
+		handleNextApplicationWindow,
+		handleNextExtendedDisplay,
+	} = props;
 	const classes = useStyles();
 	const { t } = useTranslation();
 
@@ -152,47 +146,49 @@ export default function ShareAppOrScreenControlGroup(
 
 	return (
 		<>
-			<ControlGroup
+			<div
 				id="share-screen-or-app-btn-group"
 				className={classes.controlGroupRoot}
-				fill
-				vertical={false}
-				style={{ width: '380px' }}
 			>
 				<Button
-					className={classes.shareEntireScreenButton}
+					className={classes.shareOptionButton}
 					intent="primary"
 					onClick={handleChooseEntireScreenOverlayOpen}
 				>
 					<Icon
-						className={classes.shareEntireScreenButtonIcon}
+						className={classes.shareOptionIcon}
 						icon="desktop"
-						size={100}
+						size={80}
 						color="white"
 					/>
 					<Text className="bp3-running-text">{t('entire-screen')}</Text>
 				</Button>
 				<Button
-					className={classes.shareAppButton}
+					className={classes.shareOptionButton}
 					intent="primary"
 					onClick={handleChooseAppOverlayOpen}
 				>
 					<Icon
-						className={classes.shareAppButtonIcon}
+						className={classes.shareOptionIcon}
 						icon="application"
-						size={100}
+						size={80}
 						color="white"
 					/>
 					<Text className="bp3-running-text">{t('application-window')}</Text>
 				</Button>
 				<Button
-					active
-					className={classes.orDecorationButton}
-					style={{ zIndex: 999 }}
+					className={`${classes.shareOptionButton} ${classes.shareExtendedDisplayButton}`}
+					onClick={handleNextExtendedDisplay}
 				>
-					{t('or')}
+					<Icon
+						className={classes.shareOptionIcon}
+						icon="duplicate"
+						size={80}
+						color="white"
+					/>
+					<Text className="bp3-running-text">{t('extended-display')}</Text>
 				</Button>
-			</ControlGroup>
+			</div>
 			<ChooseAppOrScreenOverlay
 				isEntireScreenToShareChosen={isEntireScreenToShareChosen}
 				isChooseAppOrScreenOverlayOpen={isChooseAppOrScreenOverlayOpen}

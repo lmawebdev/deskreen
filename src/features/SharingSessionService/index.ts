@@ -1,10 +1,10 @@
 import uuid from 'uuid';
+import { LocalPeerUser } from '../../common/LocalPeerUser';
 import RoomIDService from '../../server/RoomIDService';
 import { ConnectedDevicesService } from '../ConnectedDevicesService';
 import RendererWebrtcHelpersService from '../PeerConnectionHelperRendererService';
 import SharingSession from './SharingSession';
 import SharingSessionStatusEnum from './SharingSessionStatusEnum';
-import { LocalPeerUser } from '../../common/LocalPeerUser';
 
 export default class SharingSessionService {
 	user: LocalPeerUser | null;

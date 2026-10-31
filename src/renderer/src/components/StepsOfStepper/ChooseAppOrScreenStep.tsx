@@ -1,29 +1,28 @@
 import React from 'react';
-import { Row, Col } from 'react-flexbox-grid';
+import { Col, Row } from 'react-flexbox-grid';
 import ShareEntireScreenOrAppWindowControlGroup from '../ShareAppOrScreenControlGroup';
 
-interface ChooseAppOrScreeenStepProps {
+interface ChooseAppOrScreenStepProps {
 	handleNextEntireScreen: () => void;
 	handleNextApplicationWindow: () => void;
+	handleNextExtendedDisplay: () => void;
 }
 
-const ChooseAppOrScreenStep: React.FC<ChooseAppOrScreeenStepProps> = ({
+const ChooseAppOrScreenStep: React.FC<ChooseAppOrScreenStepProps> = ({
 	handleNextEntireScreen,
 	handleNextApplicationWindow,
-}: ChooseAppOrScreeenStepProps) => {
+	handleNextExtendedDisplay,
+}: ChooseAppOrScreenStepProps) => {
 	return (
 		<Row style={{ width: '100%' }}>
 			<Col xs={12}>
 				<Row center="xs">
-					<Col xs={6}>
-						<Row center="xs">
-							<Col>
-								<ShareEntireScreenOrAppWindowControlGroup
-									handleNextEntireScreen={handleNextEntireScreen}
-									handleNextApplicationWindow={handleNextApplicationWindow}
-								/>
-							</Col>
-						</Row>
+					<Col>
+						<ShareEntireScreenOrAppWindowControlGroup
+							handleNextEntireScreen={handleNextEntireScreen}
+							handleNextApplicationWindow={handleNextApplicationWindow}
+							handleNextExtendedDisplay={handleNextExtendedDisplay}
+						/>
 					</Col>
 				</Row>
 			</Col>

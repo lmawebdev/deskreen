@@ -39,10 +39,19 @@ type AppLanguageMessageWithPayload = {
 	};
 };
 
+type ScreenSizeChangedMessageWithPayload = {
+	type: 'SCREEN_SIZE_CHANGED';
+	payload: {
+		width: number;
+		height: number;
+	};
+};
+
 type ProcessedMessage =
 	| CallUserMessageWithPayload
 	| DeviceDetailsMessageWithPayload
 	| DenyToConnectMessageWithPayload
 	| DisconnectByHostMachineUserMessageWithPayload
 	| AllowedToConnectMessageWithPayload
-	| AppLanguageMessageWithPayload;
+	| AppLanguageMessageWithPayload
+	| ScreenSizeChangedMessageWithPayload;

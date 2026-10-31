@@ -87,6 +87,23 @@ const DeskreenStepper = ({
 	const [isSelectLanguageDialogOpen, setIsSelectLanguageDialogOpen] =
 		useState(false);
 	const [helloWord, setHelloWord] = useState('Hello');
+	const [isVirtualDisplaySupported, setIsVirtualDisplaySupported] =
+		useState(false);
+
+	useEffect(() => {
+		let cancelled = false;
+		window.electron.ipcRenderer
+			.invoke(IpcEvents.GetVirtualDisplaySupport)
+			.then((supported: boolean) => {
+				if (!cancelled) setIsVirtualDisplaySupported(Boolean(supported));
+			})
+			.catch((error) => {
+				console.error('failed to check virtual display support', error);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
 
 	useEffect(() => {
 		let helloInterval: NodeJS.Timeout;
@@ -142,14 +159,33 @@ const DeskreenStepper = ({
 	}, [activeStep, setActiveStep, steps]);
 
 	const handleNextEntireScreen = useCallback((): void => {
+		void window.electron.ipcRenderer.invoke(IpcEvents.SetSharingType, 'screen');
 		setActiveStep((prevActiveStep: number): number => prevActiveStep + 1);
 		setIsEntireScreenSelected(true);
+		setIsApplicationWindowSelected(false);
 	}, [setActiveStep]);
 
 	const handleNextApplicationWindow = useCallback((): void => {
+		void window.electron.ipcRenderer.invoke(IpcEvents.SetSharingType, 'window');
 		setActiveStep((prevActiveStep: number): number => prevActiveStep + 1);
 		setIsApplicationWindowSelected(true);
+		setIsEntireScreenSelected(false);
 	}, [setActiveStep]);
+
+	const handleNextExtendedDisplay = useCallback(async (): Promise<void> => {
+		if (!isVirtualDisplaySupported) {
+			await showMessageFromNewToaster(t('extended-display-not-supported'));
+			return;
+		}
+
+		await window.electron.ipcRenderer.invoke(
+			IpcEvents.SetSharingType,
+			'extended',
+		);
+		setActiveStep((prevActiveStep: number): number => prevActiveStep + 1);
+		setIsEntireScreenSelected(false);
+		setIsApplicationWindowSelected(false);
+	}, [isVirtualDisplaySupported, setActiveStep, t]);
 
 	const handleBack = useCallback((): void => {
 		setActiveStep((prevActiveStep: number) => prevActiveStep - 1);
@@ -296,8 +332,7 @@ const DeskreenStepper = ({
 					handleBack={handleBack}
 					handleNextEntireScreen={handleNextEntireScreen}
 					handleNextApplicationWindow={handleNextApplicationWindow}
-					resetPendingConnectionDevice={() => setPendingConnectionDevice(null)}
-					resetUserAllowedConnection={() => setIsUserAllowedConnection(false)}
+					handleNextExtendedDisplay={handleNextExtendedDisplay}
 					connectedDevice={pendingConnectionDevice}
 					handleReset={handleReset}
 				/>

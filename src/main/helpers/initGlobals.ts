@@ -1,10 +1,11 @@
 import { app } from 'electron';
 import { ConnectedDevicesService } from '../../features/ConnectedDevicesService';
-import SharingSessionService from '../../features/SharingSessionService';
-import RendererWebrtcHelpersService from '../../features/PeerConnectionHelperRendererService';
-import RoomIDService from '../../server/RoomIDService';
 import DesktopCapturerSources from '../../features/DesktopCapturerSourcesService';
 import DesktopCapturerSourcesService from '../../features/DesktopCapturerSourcesService';
+import RendererWebrtcHelpersService from '../../features/PeerConnectionHelperRendererService';
+import SharingSessionService from '../../features/SharingSessionService';
+import VirtualDisplayService from '../../features/VirtualDisplayService';
+import RoomIDService from '../../server/RoomIDService';
 
 export interface DeskreenGlobal {
 	appPath: string;
@@ -13,6 +14,7 @@ export interface DeskreenGlobal {
 	connectedDevicesService: ConnectedDevicesService;
 	sharingSessionService: SharingSessionService;
 	desktopCapturerSourcesService: DesktopCapturerSourcesService;
+	virtualDisplayService: VirtualDisplayService;
 	latestAppVersion: string;
 	currentAppVersion: string;
 	cliLocalIp?: string;
@@ -32,6 +34,9 @@ export const initGlobals = (appPath: string, cliLocalIp?: string) => {
 		deskreenGlobal.rendererWebrtcHelpersService,
 	);
 	deskreenGlobal.desktopCapturerSourcesService = new DesktopCapturerSources();
+	deskreenGlobal.virtualDisplayService = new VirtualDisplayService(
+		deskreenGlobal.desktopCapturerSourcesService,
+	);
 	deskreenGlobal.latestAppVersion = '';
 	deskreenGlobal.currentAppVersion = app.getVersion();
 	deskreenGlobal.cliLocalIp = cliLocalIp;

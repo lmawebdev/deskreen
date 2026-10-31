@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
-import { H3, Dialog, Button, Spinner } from '@blueprintjs/core';
-import { Row, Col } from 'react-flexbox-grid';
+import { Button, Dialog, H3, Spinner } from '@blueprintjs/core';
 import { createStyles, makeStyles } from '@material-ui/core/styles';
+import { useCallback, useEffect, useState } from 'react';
+import { Col, Row } from 'react-flexbox-grid';
+import { useTranslation } from 'react-i18next';
+import { IpcEvents } from '../../../../../common/IpcEvents.enum';
 import CloseOverlayButton from '../../CloseOverlayButton';
 import PreviewGridList from './PreviewGridList';
-import { IpcEvents } from '../../../../../common/IpcEvents.enum';
-import { useTranslation } from 'react-i18next';
 
 const useStyles = makeStyles(() =>
 	createStyles({

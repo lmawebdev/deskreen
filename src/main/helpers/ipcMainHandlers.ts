@@ -14,6 +14,7 @@ import { IpcEvents } from '../../common/IpcEvents.enum';
 import { ConnectedDevicesService } from '../../features/ConnectedDevicesService';
 import SharingSession from '../../features/SharingSessionService/SharingSession';
 import SharingSessionStatusEnum from '../../features/SharingSessionService/SharingSessionStatusEnum';
+import SharingTypeEnum from '../../features/SharingSessionService/SharingTypeEnum';
 import { signalingServer } from '../../server';
 import { onDeviceConnectedCallback } from '../../server/onDeviceConnectedCallback';
 import RoomIDService from '../../server/RoomIDService';
@@ -25,6 +26,19 @@ import getMyLocalIpV4 from './getMyLocalIpV4';
 import isWifiConnected from './isWifiConnected';
 
 export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
+	getDeskreenGlobal().virtualDisplayService.setResizeListener((info) => {
+		const session =
+			getDeskreenGlobal().sharingSessionService.sharingSessions.get(
+				info.sharingSessionID,
+			);
+		session?.setPartnerDesktopCapturerSourceID(
+			info.deviceID,
+			info.sourceID,
+			info.width,
+			info.height,
+		);
+	});
+
 	ipcMain.on('client-changed-language', async (_, newLangCode) => {
 		i18n.changeLanguage(newLangCode);
 		if (store.has(ElectronStoreKeys.AppLanguage)) {
@@ -35,6 +49,35 @@ export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
 		}
 		store.set(ElectronStoreKeys.AppLanguage, newLangCode);
 	});
+
+	ipcMain.on('virtual-display-error', (_, payload) => {
+		console.error('[virtual-display]', payload);
+	});
+
+	ipcMain.on(
+		'partner-screen-size-changed',
+		(_, payload: { deviceID: string; width: number; height: number }) => {
+			if (
+				!payload?.deviceID ||
+				!Number.isFinite(payload.width) ||
+				!Number.isFinite(payload.height)
+			) {
+				return;
+			}
+
+			const deskreenGlobal = getDeskreenGlobal();
+			deskreenGlobal.connectedDevicesService.updateDeviceScreenSize(
+				payload.deviceID,
+				payload.width,
+				payload.height,
+			);
+			void deskreenGlobal.virtualDisplayService.resize(
+				payload.deviceID,
+				payload.width,
+				payload.height,
+			);
+		},
+	);
 
 	ipcMain.handle('get-signaling-server-port', () => {
 		if (mainWindow === null) return;
@@ -90,6 +133,7 @@ export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
 
 	ipcMain.handle('main-window-onbeforeunload', () => {
 		const deskreenGlobal = getDeskreenGlobal();
+		deskreenGlobal.virtualDisplayService.destroyAll();
 		deskreenGlobal.connectedDevicesService = new ConnectedDevicesService();
 		deskreenGlobal.roomIDService = new RoomIDService();
 		deskreenGlobal.sharingSessionService.sharingSessions.forEach(
@@ -261,7 +305,48 @@ export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
 		removeViewerAvailabilityListener();
 	});
 
-	ipcMain.handle(IpcEvents.SetDeviceConnectedStatus, () => {
+	ipcMain.handle(
+		IpcEvents.SetSharingType,
+		(_, type: 'screen' | 'window' | 'extended') => {
+			const sharingSession =
+				getDeskreenGlobal().sharingSessionService
+					.waitingForConnectionSharingSession;
+			if (!sharingSession) return;
+
+			const sharingType =
+				type === 'extended'
+					? SharingTypeEnum.EXTENDED_DISPLAY
+					: type === 'screen'
+						? SharingTypeEnum.SCREEN
+						: SharingTypeEnum.APP;
+
+			sharingSession.setSharingType(sharingType);
+		},
+	);
+
+	ipcMain.handle(IpcEvents.GetVirtualDisplaySupport, () => {
+		return getDeskreenGlobal().virtualDisplayService.isSupported();
+	});
+
+	ipcMain.handle(IpcEvents.GetSharingType, () => {
+		const sharingSession =
+			getDeskreenGlobal().sharingSessionService
+				.waitingForConnectionSharingSession;
+		if (!sharingSession) return 'not-set';
+
+		if (sharingSession.sharingType === SharingTypeEnum.EXTENDED_DISPLAY) {
+			return 'extended';
+		}
+		if (sharingSession.sharingType === SharingTypeEnum.SCREEN) {
+			return 'screen';
+		}
+		if (sharingSession.sharingType === SharingTypeEnum.APP) {
+			return 'window';
+		}
+		return 'not-set';
+	});
+
+	ipcMain.handle(IpcEvents.SetDeviceConnectedStatus, async () => {
 		const deskreenGlobal = getDeskreenGlobal();
 		const { connectedDevicesService, sharingSessionService } = deskreenGlobal;
 		const pendingDevice = connectedDevicesService.pendingConnectionDevice;
@@ -319,6 +404,40 @@ export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
 
 		connectedDevicesService.resetPendingConnectionDevice();
 		sharingSession.sendUserAllowedToConnect(pendingDevice.id);
+
+		if (sharingSession.sharingType === SharingTypeEnum.EXTENDED_DISPLAY) {
+			try {
+				const display =
+					await deskreenGlobal.virtualDisplayService.createForDevice(
+						pendingDevice,
+					);
+
+				if (!connectedDevicesService.getDeviceByID(pendingDevice.id)) {
+					deskreenGlobal.virtualDisplayService.destroyForDevice(
+						pendingDevice.id,
+					);
+					return { isFirstViewer: false, connected: false };
+				}
+
+				sharingSession.setPartnerDesktopCapturerSourceID(
+					pendingDevice.id,
+					display.sourceID,
+					display.width,
+					display.height,
+				);
+			} catch (error) {
+				console.error('failed to create virtual display', error);
+				connectedDevicesService.disconnectDeviceByID(pendingDevice.id);
+				sharingSession.denyConnectionForPartner(pendingDevice.id);
+				notifyNextPendingDevice();
+				return {
+					isFirstViewer: false,
+					connected: false,
+					error: String(error),
+				};
+			}
+		}
+
 		sharingSession.callPeer(pendingDevice.id);
 		notifyNextPendingDevice();
 		return { isFirstViewer: false, connected: true };
@@ -362,6 +481,8 @@ export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
 			const sharingSession =
 				deskreenGlobal.sharingSessionService.sharingSessions.get(sessionId);
 
+			deskreenGlobal.virtualDisplayService.destroyForSession(sessionId);
+
 			if (sharingSession) {
 				deskreenGlobal.connectedDevicesService
 					.getDevicesBySharingSessionID(sessionId)
@@ -397,7 +518,11 @@ export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
 
 	ipcMain.handle(IpcEvents.DisconnectDeviceById, (_, id) => {
 		const deskreenGlobal = getDeskreenGlobal();
-		const { connectedDevicesService, sharingSessionService } = deskreenGlobal;
+		const {
+			connectedDevicesService,
+			sharingSessionService,
+			virtualDisplayService,
+		} = deskreenGlobal;
 		const device = connectedDevicesService.getDeviceByID(id);
 		const pendingDevice =
 			connectedDevicesService.getPendingConnectionDeviceByID(id);
@@ -429,6 +554,7 @@ export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
 			session?.denyConnectionForPartner(id);
 		}
 
+		virtualDisplayService.destroyForDevice(id);
 		notifyNextPendingDevice();
 	});
 
@@ -501,9 +627,13 @@ export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
 		},
 	);
 
-	function startSharingOnWaitingForConnectionSharingSession(): void {
+	async function startSharingOnWaitingForConnectionSharingSession(): Promise<void> {
 		const deskreenGlobal = getDeskreenGlobal();
-		const { connectedDevicesService, sharingSessionService } = deskreenGlobal;
+		const {
+			connectedDevicesService,
+			sharingSessionService,
+			virtualDisplayService,
+		} = deskreenGlobal;
 
 		const pendingDevice = connectedDevicesService.pendingConnectionDevice;
 		if (!pendingDevice.id) {
@@ -537,6 +667,37 @@ export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
 			return;
 		}
 
+		if (sharingSession.sharingType === SharingTypeEnum.EXTENDED_DISPLAY) {
+			try {
+				const display =
+					await virtualDisplayService.createForDevice(pendingDevice);
+
+				if (!connectedDevicesService.getDeviceByID(pendingDevice.id)) {
+					virtualDisplayService.destroyForDevice(pendingDevice.id);
+					connectedDevicesService.resetPendingConnectionDevice();
+					return;
+				}
+
+				sharingSession.desktopCapturerSourceID = display.sourceID;
+				sharingSession.setPartnerDesktopCapturerSourceID(
+					pendingDevice.id,
+					display.sourceID,
+					display.width,
+					display.height,
+				);
+			} catch (error) {
+				console.error('failed to create virtual display', error);
+				connectedDevicesService.disconnectDeviceByID(pendingDevice.id);
+				sharingSession.denyConnectionForPartner(pendingDevice.id);
+				sharingSession.destroy();
+				sharingSessionService.sharingSessions.delete(sharingSession.id);
+				deskreenGlobal.roomIDService.unmarkRoomIDAsTaken(sharingSession.roomID);
+				sharingSessionService.waitingForConnectionSharingSession = null;
+				connectedDevicesService.resetPendingConnectionDevice();
+				return;
+			}
+		}
+
 		sharingSession.callPeer(pendingDevice.id);
 		sharingSession.setStatus(SharingSessionStatusEnum.SHARING);
 		sharingSessionService.waitingForConnectionSharingSession = null;
@@ -547,8 +708,8 @@ export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
 
 	ipcMain.handle(
 		IpcEvents.StartSharingOnWaitingForConnectionSharingSession,
-		() => {
-			startSharingOnWaitingForConnectionSharingSession();
+		async () => {
+			await startSharingOnWaitingForConnectionSharingSession();
 		},
 	);
 
@@ -626,6 +787,8 @@ export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
 	ipcMain.handle(IpcEvents.DestroySharingSessionById, (_, id) => {
 		const deskreenGlobal = getDeskreenGlobal();
 		const { sharingSessionService, connectedDevicesService } = deskreenGlobal;
+
+		deskreenGlobal.virtualDisplayService.destroyForSession(id);
 
 		const sharingSession = sharingSessionService.sharingSessions.get(id);
 		const wasActive =

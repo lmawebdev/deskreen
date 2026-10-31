@@ -1,25 +1,26 @@
 import i18n from 'i18next';
 import config from '../../common/app.lang.config';
+
 // import { ElectronStoreKeys } from '../../common/ElectronStoreKeys.enum';
 // import { store } from '../../common/deskreen-electron-store';
 
-import translationEN from '../../common/locales/en/translation.json';
-import translationES from '../../common/locales/es/translation.json';
-import translationKO from '../../common/locales/ko/translation.json';
-import translationUA from '../../common/locales/ua/translation.json';
-import translationRU from '../../common/locales/ru/translation.json';
-import translationZH_CN from '../../common/locales/zh_CN/translation.json';
-import translationZH_TW from '../../common/locales/zh_TW/translation.json';
-import translationDA from '../../common/locales/da/translation.json';
-import translationDE from '../../common/locales/de/translation.json';
-import translationFI from '../../common/locales/fi/translation.json';
-import translationIT from '../../common/locales/it/translation.json';
-import translationJA from '../../common/locales/ja/translation.json';
-import translationNL from '../../common/locales/nl/translation.json';
-import translationFR from '../../common/locales/fr/translation.json';
-import translationSV from '../../common/locales/sv/translation.json';
 import { store } from '../../common/deskreen-electron-store';
 import { ElectronStoreKeys } from '../../common/ElectronStoreKeys.enum';
+import translationDA from '../../common/locales/da/translation.json';
+import translationDE from '../../common/locales/de/translation.json';
+import translationEN from '../../common/locales/en/translation.json';
+import translationES from '../../common/locales/es/translation.json';
+import translationFI from '../../common/locales/fi/translation.json';
+import translationFR from '../../common/locales/fr/translation.json';
+import translationIT from '../../common/locales/it/translation.json';
+import translationJA from '../../common/locales/ja/translation.json';
+import translationKO from '../../common/locales/ko/translation.json';
+import translationNL from '../../common/locales/nl/translation.json';
+import translationRU from '../../common/locales/ru/translation.json';
+import translationSV from '../../common/locales/sv/translation.json';
+import translationUA from '../../common/locales/ua/translation.json';
+import translationZH_CN from '../../common/locales/zh_CN/translation.json';
+import translationZH_TW from '../../common/locales/zh_TW/translation.json';
 
 const i18nextOptions = {
 	fallbackLng: config.fallbackLng,

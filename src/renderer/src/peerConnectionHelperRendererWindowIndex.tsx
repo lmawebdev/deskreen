@@ -69,6 +69,35 @@ export function handleIpcRenderer(): void {
 			},
 		);
 
+		window.electron.ipcRenderer.on(
+			'set-sharing-type',
+			(_, type: 'screen' | 'window' | 'extended') => {
+				if (peerConnection) {
+					peerConnection.setExtendedDisplayMode(type === 'extended');
+				}
+			},
+		);
+
+		window.electron.ipcRenderer.on(
+			'set-partner-desktop-capturer-source-id',
+			(
+				_,
+				deviceID: string,
+				sourceID: string,
+				displayWidth?: number,
+				displayHeight?: number,
+			) => {
+				if (peerConnection) {
+					void peerConnection.setPartnerDesktopCapturerSourceID(
+						deviceID,
+						sourceID,
+						displayWidth,
+						displayHeight,
+					);
+				}
+			},
+		);
+
 		window.electron.ipcRenderer.on('call-peer', (_, deviceId?: string) => {
 			if (peerConnection) {
 				peerConnection.callPeer(deviceId);

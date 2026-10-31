@@ -3,14 +3,15 @@ import {
 	overrideGlobalConsole,
 	startConsoleRateLimiting,
 } from '../common/rateLimitedConsole';
+
 overrideGlobalConsole();
 startConsoleRateLimiting();
 
-import { app, shell, BrowserWindow, Notification } from 'electron';
-import { join } from 'path';
-import { is, optimizer } from '@electron-toolkit/utils';
-import icon from '../../resources/icon.png?asset';
 import { existsSync } from 'node:fs';
+import { is, optimizer } from '@electron-toolkit/utils';
+import { app, BrowserWindow, Notification, shell } from 'electron';
+import { join } from 'path';
+import icon from '../../resources/icon.png?asset';
 
 // function createWindow(): void {
 //   // Create the browser window.
@@ -85,19 +86,21 @@ import { existsSync } from 'node:fs';
 // import path from 'path';
 // import { app, BrowserWindow } from 'electron';
 import { store } from '../common/deskreen-electron-store';
+import { ElectronStoreKeys } from '../common/ElectronStoreKeys.enum';
+import { signalingServer } from '../server';
 // import i18n from './i18next.config';
 import i18n from './configs/i18next.config';
-import { signalingServer } from '../server';
-import MenuBuilder from './menu';
-import installExtensions from './utils/installExtensions';
-import getNewVersionTag from './utils/getNewVersionTag';
-import { initIpcMainHandlers } from './helpers/ipcMainHandlers';
-import { initGlobals } from './helpers/initGlobals';
-import { ElectronStoreKeys } from '../common/ElectronStoreKeys.enum';
 import { getDeskreenGlobal } from './helpers/getDeskreenGlobal';
+import { initGlobals } from './helpers/initGlobals';
+import { initIpcMainHandlers } from './helpers/ipcMainHandlers';
+import MenuBuilder from './menu';
+import getNewVersionTag from './utils/getNewVersionTag';
+import installExtensions from './utils/installExtensions';
 import { startLogBufferCleanup } from './utils/LoggerWithFilePrefix';
 
-const resolvePreloadScriptPath = (entry: 'index' | 'helperRenderer'): string => {
+const resolvePreloadScriptPath = (
+	entry: 'index' | 'helperRenderer',
+): string => {
 	const baseDir = join(__dirname, '../preload');
 	const candidates = [`${entry}.js`, `${entry}.mjs`, `${entry}.cjs`];
 	for (const fileName of candidates) {
@@ -146,6 +149,14 @@ export default class DeskreenApp {
 
 		app.on('browser-window-created', (_, window) => {
 			optimizer.watchWindowShortcuts(window);
+		});
+
+		app.on('before-quit', () => {
+			try {
+				getDeskreenGlobal().virtualDisplayService?.destroyAll();
+			} catch (error) {
+				console.error('failed to clean up virtual displays', error);
+			}
 		});
 
 		app.on('activate', (e) => {

@@ -22,12 +22,12 @@ export default function handleCreatePeer(
 
 		partner.peer = peer;
 
-		if (peerConnection.localStream !== null) {
-			peer.addStream(peerConnection.localStream);
+		const stream = peerConnection.getStreamForPartner(partner);
+		if (stream !== null) {
+			peer.addStream(stream);
 			partner.hasStream = true;
-			partner.stream = peerConnection.localStream;
-			partner.currentTrack =
-				peerConnection.localStream.getVideoTracks()[0] ?? null;
+			partner.stream = stream;
+			partner.currentTrack = stream.getVideoTracks()[0] ?? null;
 		}
 
 		peer.on('signal', (data: unknown) => {
@@ -57,6 +57,10 @@ export default function handleCreatePeer(
 
 		peer.on('error', (e: Error) => {
 			console.error('peerConnection peer error', e);
+			window.electron.ipcRenderer.send('virtual-display-error', {
+				deviceID: partner.deviceID,
+				message: `peer error: ${String(e)}`,
+			});
 			peerConnection.handlePartnerPeerClosed(partner.username, peer);
 		});
 

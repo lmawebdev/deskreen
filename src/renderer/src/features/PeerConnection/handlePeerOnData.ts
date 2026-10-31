@@ -22,16 +22,25 @@ export default function handlePeerOnData(
 		const requestedQuality = dataJSON.payload?.value;
 		if (typeof requestedQuality !== 'number') return;
 
+		if (peerConnection.isExtendedDisplayMode) {
+			// Extended displays keep their native track. Replacing it with the
+			// auto-quality track can produce odd dimensions (e.g. 206x459) and
+			// freeze the WebRTC encoder, which shows up as a static frame.
+			window.electron.ipcRenderer.send('virtual-display-error', {
+				event: 'quality-ignored',
+				deviceID: partner.deviceID,
+				value: requestedQuality,
+			});
+			return;
+		}
+
 		const maxVideoQualityMultiplier = requestedQuality;
 		const minVideoQualityMultiplier =
 			maxVideoQualityMultiplier === 1 ? 0.5 : maxVideoQualityMultiplier;
 
-		if (
-			!peerConnection.desktopCapturerSourceID.includes(
-				DesktopCapturerSourceType.SCREEN,
-			)
-		)
-			return;
+		const sourceID = peerConnection.desktopCapturerSourceID;
+
+		if (!sourceID.includes(DesktopCapturerSourceType.SCREEN)) return;
 
 		void peerConnection.replaceSharedVideoTrackWithQuality(
 			minVideoQualityMultiplier,
@@ -40,9 +49,11 @@ export default function handlePeerOnData(
 	}
 
 	if (dataJSON.type === 'get_sharing_source_type') {
-		const sourceType = peerConnection.desktopCapturerSourceID.includes(
-			DesktopCapturerSourceType.SCREEN,
-		)
+		const sourceID = peerConnection.isExtendedDisplayMode
+			? partner.desktopCapturerSourceID
+			: peerConnection.desktopCapturerSourceID;
+
+		const sourceType = sourceID.includes(DesktopCapturerSourceType.SCREEN)
 			? DesktopCapturerSourceType.SCREEN
 			: DesktopCapturerSourceType.WINDOW;
 

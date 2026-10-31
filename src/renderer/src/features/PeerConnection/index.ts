@@ -38,6 +38,13 @@ export interface HostPartnerConnection {
 	stream: MediaStream | null;
 	/** Video track currently being sent to this viewer. */
 	currentTrack: MediaStreamTrack | null;
+	/** Extended-display mode: per-partner capture source and stream. */
+	desktopCapturerSourceID: string;
+	localStream: MediaStream | null;
+	displayWidth: number;
+	displayHeight: number;
+	isReplacingTrack: boolean;
+	streamPromise: Promise<void> | null;
 }
 
 export default class PeerConnection {
@@ -50,6 +57,7 @@ export default class PeerConnection {
 	localStream: MediaStream | null = null;
 	hasStartedSharing = false;
 	hasJoinedRoom = false;
+	isExtendedDisplayMode = false;
 	isDestroyed = false;
 	isReplacingSharedTrack = false;
 	onDeviceConnectedCallback: (device: Device) => void;
@@ -112,6 +120,12 @@ export default class PeerConnection {
 				hasStream: false,
 				stream: null,
 				currentTrack: null,
+				desktopCapturerSourceID: '',
+				localStream: null,
+				displayWidth: 0,
+				displayHeight: 0,
+				isReplacingTrack: false,
+				streamPromise: null,
 			};
 			this.partners.set(username, partner);
 		}
@@ -153,6 +167,12 @@ export default class PeerConnection {
 			partner.peer = null;
 		}
 
+		// Extended-display streams belong to one viewer; stop them here.
+		if (partner.localStream) {
+			partner.localStream.getTracks().forEach((track) => track.stop());
+			partner.localStream = null;
+		}
+
 		partner.signals = [];
 		const deviceID = partner.deviceID;
 		partner.deviceID = '';
@@ -185,7 +205,189 @@ export default class PeerConnection {
 		}
 	}
 
+	setExtendedDisplayMode(enabled: boolean): void {
+		if (this.isExtendedDisplayMode === enabled) return;
+		this.isExtendedDisplayMode = enabled;
+		window.electron.ipcRenderer.send('virtual-display-error', {
+			event: 'sharing-mode',
+			extended: enabled,
+		});
+
+		if (enabled) {
+			// The virtual display is captured per viewer. Stop any mirror
+			// capture that was selected before switching modes.
+			this.desktopCapturerSourceID = '';
+			this.stopLocalStream();
+		}
+	}
+
+	getStreamForPartner(partner: HostPartnerConnection): MediaStream | null {
+		return this.isExtendedDisplayMode ? partner.localStream : this.localStream;
+	}
+
+	async setPartnerDesktopCapturerSourceID(
+		deviceID: string,
+		sourceID: string,
+		displayWidth?: number,
+		displayHeight?: number,
+	): Promise<void> {
+		const partner = this.getPartnerByDeviceID(deviceID);
+		if (!partner) return;
+
+		// Receiving a per-partner source is itself proof that this helper is in
+		// extended-display mode. Do not depend on a previous IPC arriving.
+		this.setExtendedDisplayMode(true);
+		partner.desktopCapturerSourceID = sourceID;
+		partner.displayWidth = displayWidth ?? 0;
+		partner.displayHeight = displayHeight ?? 0;
+
+		window.electron.ipcRenderer.send('virtual-display-error', {
+			event: 'partner-source',
+			deviceID,
+			sourceID,
+			displayWidth,
+			displayHeight,
+		});
+
+		const capture = (async (): Promise<void> => {
+			const stream = await getDesktopSourceStreamBySourceID(sourceID);
+			await this.applyPartnerStream(partner, stream);
+		})();
+
+		partner.streamPromise = capture;
+
+		try {
+			await capture;
+		} catch (error) {
+			console.error(
+				`Failed to capture virtual display for viewer ${deviceID}`,
+				error,
+			);
+			window.electron.ipcRenderer.send('virtual-display-error', {
+				deviceID,
+				message: String(error),
+			});
+		} finally {
+			if (partner.streamPromise === capture) {
+				partner.streamPromise = null;
+			}
+		}
+	}
+
+	private async applyPartnerStream(
+		partner: HostPartnerConnection,
+		newStream: MediaStream,
+	): Promise<void> {
+		const newTrack = newStream.getVideoTracks()[0];
+		if (!newTrack) {
+			newStream.getTracks().forEach((track) => track.stop());
+			return;
+		}
+
+		const oldStream = partner.localStream;
+		const oldTrack = partner.currentTrack;
+		partner.localStream = newStream;
+
+		const settings = newTrack.getSettings();
+		window.electron.ipcRenderer.send('virtual-display-error', {
+			event: 'capture-ready',
+			deviceID: partner.deviceID,
+			width: settings.width,
+			height: settings.height,
+			hasPeer: Boolean(partner.peer),
+			callStarted: partner.isCallStarted,
+		});
+
+		if (partner.peer) {
+			if (partner.hasStream && partner.stream && oldTrack) {
+				try {
+					partner.peer.replaceTrack(oldTrack, newTrack, partner.stream);
+					partner.currentTrack = newTrack;
+				} catch (error) {
+					console.error(
+						`Failed to replace virtual display track for viewer ${partner.username}`,
+						error,
+					);
+				}
+			} else {
+				try {
+					partner.peer.addStream(newStream);
+					partner.hasStream = true;
+					partner.stream = newStream;
+					partner.currentTrack = newTrack;
+				} catch (error) {
+					console.error(
+						`Failed to add virtual display stream for viewer ${partner.username}`,
+						error,
+					);
+				}
+			}
+		} else {
+			partner.hasStream = true;
+			partner.stream = newStream;
+			partner.currentTrack = newTrack;
+
+			// The viewer was already approved and called; the peer is created
+			// as soon as its virtual display stream exists.
+			if (partner.isCallStarted) {
+				await this.createPeerForPartner(partner);
+			}
+		}
+
+		if (oldStream && oldStream !== newStream) {
+			oldStream.getTracks().forEach((track) => {
+				if (track.id !== newTrack.id) track.stop();
+			});
+		}
+	}
+
+	async replacePartnerVideoTrackWithQuality(
+		partner: HostPartnerConnection,
+		min: number,
+		max: number,
+	): Promise<void> {
+		if (!partner.desktopCapturerSourceID) return;
+		if (partner.isReplacingTrack) return;
+		partner.isReplacingTrack = true;
+		try {
+			const newStream = await getDesktopSourceStreamBySourceID(
+				partner.desktopCapturerSourceID,
+				partner.displayWidth || undefined,
+				partner.displayHeight || undefined,
+				min,
+				max,
+				60,
+				60,
+			);
+
+			const newTrack = newStream.getVideoTracks()[0];
+			const settings = newTrack?.getSettings();
+			if (
+				settings?.width &&
+				settings?.height &&
+				(settings.width % 2 !== 0 || settings.height % 2 !== 0)
+			) {
+				console.warn(
+					`Skipping odd-sized video track ${settings.width}x${settings.height}`,
+				);
+				window.electron.ipcRenderer.send('virtual-display-error', {
+					deviceID: partner.deviceID,
+					message: `skipping odd-sized track ${settings.width}x${settings.height}`,
+				});
+				newStream.getTracks().forEach((track) => track.stop());
+				return;
+			}
+
+			await this.applyPartnerStream(partner, newStream);
+		} catch (error) {
+			console.error('Failed to change virtual display quality:', error);
+		} finally {
+			partner.isReplacingTrack = false;
+		}
+	}
+
 	async setDesktopCapturerSourceID(id: string): Promise<void> {
+		if (this.isExtendedDisplayMode) return;
 		this.desktopCapturerSourceID = id;
 		if (process.env.RUN_MODE === 'test') return;
 
@@ -473,6 +675,17 @@ export default class PeerConnection {
 		for (const partner of this.resolveTargets(deviceID)) {
 			this.hasStartedSharing = true;
 			partner.isCallStarted = true;
+
+			// In extended-display mode the peer must be created only after the
+			// virtual display stream is ready, otherwise the first offer has no
+			// media and the renegotiation can fail on some browsers.
+			if (partner.streamPromise) {
+				try {
+					await partner.streamPromise;
+				} catch {
+					// The capture error was already reported.
+				}
+			}
 
 			await this.createPeerForPartner(partner);
 

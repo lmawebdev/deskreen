@@ -114,6 +114,26 @@ export class ConnectedDevicesService {
 		return device ? { ...device } : undefined;
 	}
 
+	updateDeviceScreenSize(
+		deviceID: string,
+		width: number,
+		height: number,
+	): void {
+		const device = this.devices.get(deviceID);
+		if (device) {
+			device.deviceScreenWidth = width;
+			device.deviceScreenHeight = height;
+		}
+
+		const pending = this.pendingConnectionDevices.find(
+			(candidate) => candidate.id === deviceID,
+		);
+		if (pending) {
+			pending.deviceScreenWidth = width;
+			pending.deviceScreenHeight = height;
+		}
+	}
+
 	addDevice(device: Device): void {
 		if (this.devices.has(device.id)) return;
 		if (!this.isSlotAvailable()) {

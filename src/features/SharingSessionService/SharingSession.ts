@@ -74,7 +74,11 @@ export default class SharingSession {
 	}
 
 	destroy(): void {
-		this.peerConnectionHelperRenderer?.close();
+		const helper = this.peerConnectionHelperRenderer;
+		if (helper && !helper.isDestroyed()) {
+			helper.close();
+		}
+		this.peerConnectionHelperRenderer = undefined;
 	}
 
 	setOnDeviceConnectedCallback(callback: (device: Device) => void): void {
@@ -87,6 +91,39 @@ export default class SharingSession {
 		this.peerConnectionHelperRenderer?.webContents.send(
 			'set-desktop-capturer-source-id',
 			id,
+		);
+	}
+
+	setSharingType(type: SharingTypeEnum): void {
+		this.sharingType = type;
+
+		if (type === SharingTypeEnum.EXTENDED_DISPLAY) {
+			// The virtual display is captured per viewer; the shared mirror
+			// source must not keep running.
+			this.desktopCapturerSourceID = '';
+			this.sendToHelperRenderer('set-sharing-type', 'extended');
+			return;
+		}
+
+		if (type === SharingTypeEnum.SCREEN) {
+			this.sendToHelperRenderer('set-sharing-type', 'screen');
+		} else if (type === SharingTypeEnum.APP) {
+			this.sendToHelperRenderer('set-sharing-type', 'window');
+		}
+	}
+
+	setPartnerDesktopCapturerSourceID(
+		deviceID: string,
+		sourceID: string,
+		displayWidth?: number,
+		displayHeight?: number,
+	): void {
+		this.sendToHelperRenderer(
+			'set-partner-desktop-capturer-source-id',
+			deviceID,
+			sourceID,
+			displayWidth,
+			displayHeight,
 		);
 	}
 

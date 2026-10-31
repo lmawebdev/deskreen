@@ -1,4 +1,5 @@
 import { ErrorMessage } from '../../components/ErrorDialog/ErrorMessageEnum';
+import { PLAYER_WRAPPER_ID } from '../../constants/appConstants';
 import {
 	getBrowserFromUAParser,
 	getDeviceTypeFromUAParser,
@@ -6,6 +7,19 @@ import {
 } from '../../utils/userAgentParserHelpers';
 import PeerConnectionSocketNotDefined from './errors/PeerConnectionSocketNotDefined';
 import setAndShowErrorDialogMessage from './setAndShowErrorDialogMessage';
+
+function getVideoAreaSize(): { width: number; height: number } {
+	const wrapper = document.getElementById(PLAYER_WRAPPER_ID);
+	const width = wrapper?.clientWidth ?? 0;
+	const height = wrapper?.clientHeight ?? 0;
+	if (width > 0 && height > 0) {
+		return { width, height };
+	}
+	return {
+		width: window.innerWidth,
+		height: window.innerHeight,
+	};
+}
 
 export function getMyIPCallback(
 	peerConnection: PeerConnection,
@@ -134,6 +148,7 @@ export default (peerConnection: PeerConnection) => {
 			if (peerConnection.hasSentDeviceDetails) return;
 			peerConnection.hasSentDeviceDetails = true;
 
+			const videoArea = getVideoAreaSize();
 			peerConnection.sendEncryptedMessage({
 				type: 'DEVICE_DETAILS',
 				// TODO: add deviceIP in this payload
@@ -141,8 +156,8 @@ export default (peerConnection: PeerConnection) => {
 					os: peerConnection.myDeviceDetails.myOS,
 					deviceType: peerConnection.myDeviceDetails.myDeviceType,
 					browser: peerConnection.myDeviceDetails.myBrowser,
-					deviceScreenWidth: window.screen.width,
-					deviceScreenHeight: window.screen.height,
+					deviceScreenWidth: videoArea.width,
+					deviceScreenHeight: videoArea.height,
 				},
 			});
 
@@ -180,4 +195,39 @@ export default (peerConnection: PeerConnection) => {
 	socket.on('ROOM_LOCKED', () => {
 		setAndShowErrorDialogMessage(peerConnection, ErrorMessage.DENY_TO_CONNECT);
 	});
+
+	let lastSize: { width: number; height: number } | null = null;
+	let screenSizeTimer: NodeJS.Timeout | null = null;
+
+	const sendScreenSize = (): void => {
+		if (!peerConnection.partner?.username) return;
+
+		const { width, height } = getVideoAreaSize();
+		if (width <= 0 || height <= 0) return;
+		if (lastSize && lastSize.width === width && lastSize.height === height) {
+			return;
+		}
+		lastSize = { width, height };
+
+		peerConnection.sendEncryptedMessage({
+			type: 'SCREEN_SIZE_CHANGED',
+			payload: {
+				width,
+				height,
+			},
+		});
+	};
+
+	const scheduleScreenSize = (): void => {
+		if (screenSizeTimer) clearTimeout(screenSizeTimer);
+		screenSizeTimer = setTimeout(sendScreenSize, 500);
+	};
+
+	window.addEventListener('orientationchange', scheduleScreenSize);
+	window.addEventListener('resize', scheduleScreenSize);
+	document.addEventListener('fullscreenchange', scheduleScreenSize);
+	document.addEventListener('webkitfullscreenchange', scheduleScreenSize);
+	if (window.screen.orientation) {
+		window.screen.orientation.addEventListener('change', scheduleScreenSize);
+	}
 };

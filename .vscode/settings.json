@@ -1,0 +1,8 @@
+{
+    "i18n-ally.localesPaths": [
+        "out/client-viewer/locales",
+        "src/common/locales",
+        "src/client-viewer/public/locales",
+        "src/client-viewer/src/assets/locales"
+    ]
+}
