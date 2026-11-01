@@ -1,4 +1,5 @@
 export const PLAYER_WRAPPER_ID = 'player-wrapper-id';
+export const VIEWER_ROOT_ID = 'viewer-root-id';
 export const VIDEO_QUALITY_TO_DECIMAL = {
 	'25%': 0.25, // Q_25_PERCENT
 	'40%': 0.4, // Q_40_PERCENT

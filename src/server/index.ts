@@ -4,25 +4,26 @@
  * by Pavlo (Paul) Buidenkov
  * */
 
-import http from 'http';
-import Koa from 'koa';
 import crypto from 'crypto';
-import { Server } from 'socket.io';
-import cors from 'kcors';
-import Router from 'koa-router';
-import koaStatic from 'koa-static';
-import koaSend from 'koa-send';
 import detectPort from 'detect-port';
+import http from 'http';
+import cors from 'kcors';
+import Koa from 'koa';
+import Router from 'koa-router';
+import koaSend from 'koa-send';
+import koaStatic from 'koa-static';
+import { Server } from 'socket.io';
 import config from '../common/config';
-import startPollForInactiveRooms from './startPollForInactiveRooms';
-import Logger from '../main/utils/LoggerWithFilePrefix';
-import SocketsIPService from './socketsIPService';
-import socketIOServerStore from './store/socketIOServerStore';
-import DarkwireSocket from './darkwireSocket';
-import getStore from './store';
+import SharingSessionStatusEnum from '../features/SharingSessionService/SharingSessionStatusEnum';
 import { getDeskreenGlobal } from '../main/helpers/getDeskreenGlobal';
 import getMyLocalIpV4 from '../main/helpers/getMyLocalIpV4';
+import Logger from '../main/utils/LoggerWithFilePrefix';
+import DarkwireSocket from './darkwireSocket';
 import { getClientViewerDistPath } from './getClientViewerDistPath';
+import SocketsIPService from './socketsIPService';
+import startPollForInactiveRooms from './startPollForInactiveRooms';
+import getStore from './store';
+import socketIOServerStore from './store/socketIOServerStore';
 
 const { hostname, primaryPort, backupPort } = config;
 
@@ -30,12 +31,35 @@ const getRoomIdHash = (id: string): string => {
 	return crypto.createHash('sha256').update(id).digest('hex');
 };
 
+/**
+ * A room belongs to the app while a live sharing session owns it. This is the
+ * authoritative check: the reserved-room set alone can get out of sync (for
+ * example when the main renderer reloads), and that used to reject the host
+ * helper with NOT_ALLOWED, leaving a link that never connects.
+ */
+const isRoomOwnedByLiveSession = (roomId: string): boolean => {
+	const { sharingSessionService } = getDeskreenGlobal();
+	if (
+		sharingSessionService.waitingForConnectionSharingSession?.roomID === roomId
+	) {
+		return true;
+	}
+	return [...sharingSessionService.sharingSessions.values()].some(
+		(session) =>
+			session.roomID === roomId &&
+			session.status !== SharingSessionStatusEnum.DESTROYED &&
+			session.status !== SharingSessionStatusEnum.ERROR,
+	);
+};
+
 const ioHandleOnConnection = (socket): void => {
 	const { roomId } = socket.handshake.query;
 	const store = getStore();
 
 	setTimeout(async () => {
-		if (!getDeskreenGlobal().roomIDService.isRoomIDTaken(roomId)) {
+		const taken = getDeskreenGlobal().roomIDService.isRoomIDTaken(roomId);
+		const ownedByLiveSession = isRoomOwnedByLiveSession(roomId);
+		if (!taken && !ownedByLiveSession) {
 			socket.emit('NOT_ALLOWED');
 			setTimeout(() => {
 				socket.disconnect(true);

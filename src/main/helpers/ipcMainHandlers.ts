@@ -11,25 +11,43 @@ import DesktopCapturerSourceType from '../../common/DesktopCapturerSourceType';
 import { store } from '../../common/deskreen-electron-store';
 import { ElectronStoreKeys } from '../../common/ElectronStoreKeys.enum';
 import { IpcEvents } from '../../common/IpcEvents.enum';
-import { ConnectedDevicesService } from '../../features/ConnectedDevicesService';
 import SharingSession from '../../features/SharingSessionService/SharingSession';
 import SharingSessionStatusEnum from '../../features/SharingSessionService/SharingSessionStatusEnum';
 import SharingTypeEnum from '../../features/SharingSessionService/SharingTypeEnum';
 import { signalingServer } from '../../server';
 import { onDeviceConnectedCallback } from '../../server/onDeviceConnectedCallback';
-import RoomIDService from '../../server/RoomIDService';
 import i18n from '../configs/i18next.config';
 import isLinuxWaylandSession from '../utils/isLinuxWaylandSession';
 import { checkScreenRecordingPermission } from './checkScreenRecordingPermission';
-import { getDeskreenGlobal } from './getDeskreenGlobal';
 import {
 	getExtendedDisplaySettings,
 	saveExtendedDisplaySettings,
 } from './extendedDisplaySettings';
+import { getDeskreenGlobal } from './getDeskreenGlobal';
 import getMyLocalIpV4 from './getMyLocalIpV4';
 import isWifiConnected from './isWifiConnected';
 
 export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
+	/**
+	 * Releases a room id unless another live session already owns it. Rooms
+	 * must never stay reserved after their session is gone, otherwise a viewer
+	 * can still open the old link and wait forever in an ownerless room.
+	 */
+	function releaseRoomID(roomID: string): void {
+		if (!roomID) return;
+		const { sharingSessionService } = getDeskreenGlobal();
+		const isRoomInUse =
+			sharingSessionService.waitingForConnectionSharingSession?.roomID ===
+				roomID ||
+			[...sharingSessionService.sharingSessions.values()].some(
+				(session) =>
+					session.roomID === roomID &&
+					session.status !== SharingSessionStatusEnum.DESTROYED,
+			);
+		if (isRoomInUse) return;
+		getDeskreenGlobal().roomIDService.unmarkRoomIDAsTaken(roomID);
+	}
+
 	getDeskreenGlobal().virtualDisplayService.setResizeListener((info) => {
 		const session =
 			getDeskreenGlobal().sharingSessionService.sharingSessions.get(
@@ -137,12 +155,24 @@ export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
 
 	ipcMain.handle('main-window-onbeforeunload', () => {
 		const deskreenGlobal = getDeskreenGlobal();
+
+		// Never replace roomIDService / connectedDevicesService here: the
+		// signaling server validates rooms against deskreenGlobal.roomIDService
+		// and SharingSessionService keeps its own reference to the instance it
+		// was built with. Replacing them left every room created afterwards
+		// unmarked for the server, so the helper socket was rejected with
+		// NOT_ALLOWED and the app regenerated a dead room link forever.
 		deskreenGlobal.virtualDisplayService.destroyAll();
-		deskreenGlobal.connectedDevicesService = new ConnectedDevicesService();
-		deskreenGlobal.roomIDService = new RoomIDService();
+
+		// Free viewers first, while the sessions still exist: the availability
+		// listener must not create a new waiting session during a reload/quit.
+		deskreenGlobal.connectedDevicesService.disconnectAllDevices();
+
+		const roomIDs: string[] = [];
 		deskreenGlobal.sharingSessionService.sharingSessions.forEach(
 			(sharingSession: SharingSession) => {
 				sharingSession.denyConnectionForPartner();
+				roomIDs.push(sharingSession.roomID);
 				sharingSession.destroy();
 			},
 		);
@@ -157,6 +187,7 @@ export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
 			null;
 		deskreenGlobal.rendererWebrtcHelpersService.helpers.clear();
 		deskreenGlobal.sharingSessionService.sharingSessions.clear();
+		roomIDs.forEach(releaseRoomID);
 	});
 
 	ipcMain.handle('get-current-version', () => {
@@ -186,8 +217,7 @@ export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
 	});
 
 	ipcMain.handle(IpcEvents.UnmarkRoomIDAsTaken, (_, roomID) => {
-		const deskreenGlobal = getDeskreenGlobal();
-		deskreenGlobal.roomIDService.unmarkRoomIDAsTaken(roomID);
+		releaseRoomID(roomID);
 	});
 
 	async function createWaitingForConnectionSharingSession(
@@ -247,15 +277,15 @@ export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
 		sharingSession?.denyConnectionForPartner();
 		sharingSession?.disconnectByHostMachineUser();
 		sharingSession?.destroy();
-		sharingSession?.setStatus(SharingSessionStatusEnum.NOT_CONNECTED);
+		sharingSession?.setStatus(SharingSessionStatusEnum.DESTROYED);
 		deskreenGlobal.sharingSessionService.sharingSessions.delete(
 			sharingSession?.id as string,
 		);
-		if (roomID) {
-			deskreenGlobal.roomIDService.unmarkRoomIDAsTaken(roomID);
-		}
 		deskreenGlobal.sharingSessionService.waitingForConnectionSharingSession =
 			null;
+		if (roomID) {
+			releaseRoomID(roomID);
+		}
 	}
 
 	ipcMain.handle(IpcEvents.ResetWaitingForConnectionSharingSession, () => {
@@ -539,10 +569,21 @@ export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
 						);
 						sharingSession.disconnectByHostMachineUser(device.id);
 					});
+				sharingSession.setStatus(SharingSessionStatusEnum.DESTROYED);
 			}
 
 			sharingSession?.destroy();
 			deskreenGlobal.sharingSessionService.sharingSessions.delete(sessionId);
+			if (
+				deskreenGlobal.sharingSessionService.waitingForConnectionSharingSession
+					?.id === sessionId
+			) {
+				deskreenGlobal.sharingSessionService.waitingForConnectionSharingSession =
+					null;
+			}
+			if (sharingSession) {
+				releaseRoomID(sharingSession.roomID);
+			}
 		},
 	);
 
@@ -736,11 +777,15 @@ export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
 				console.error('failed to create virtual display', error);
 				connectedDevicesService.disconnectDeviceByID(pendingDevice.id);
 				sharingSession.denyConnectionForPartner(pendingDevice.id);
+				sharingSession.setStatus(SharingSessionStatusEnum.DESTROYED);
 				sharingSession.destroy();
 				sharingSessionService.sharingSessions.delete(sharingSession.id);
-				deskreenGlobal.roomIDService.unmarkRoomIDAsTaken(sharingSession.roomID);
 				sharingSessionService.waitingForConnectionSharingSession = null;
 				connectedDevicesService.resetPendingConnectionDevice();
+				releaseRoomID(sharingSession.roomID);
+				// Do not leave the app without a waiting room when the display
+				// could not be created.
+				void createWaitingForConnectionSharingSession();
 				return;
 			}
 		}
@@ -863,6 +908,13 @@ export const initIpcMainHandlers = (mainWindow: BrowserWindow): void => {
 		sharingSession?.setStatus(SharingSessionStatusEnum.DESTROYED);
 		sharingSession?.destroy();
 		sharingSessionService.sharingSessions.delete(id);
+
+		// Release the room reservation with the session as the single source of
+		// truth. The helper renderer used to do it on its own, but that message
+		// could arrive after a new session reused the id.
+		if (sharingSession) {
+			releaseRoomID(sharingSession.roomID);
+		}
 
 		// When an active session closes because the last viewer left, go back
 		// to the "waiting for connection" state with a fresh room.

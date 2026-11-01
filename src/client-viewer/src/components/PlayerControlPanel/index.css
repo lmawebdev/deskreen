@@ -33,7 +33,9 @@
 }
 
 .play-pause-button-glow {
-	box-shadow: 0 0 20px rgba(19, 124, 189, 0.8), 0 0 40px rgba(19, 124, 189, 0.6) !important;
+	box-shadow:
+		0 0 20px rgba(19, 124, 189, 0.8),
+		0 0 40px rgba(19, 124, 189, 0.6) !important;
 }
 
 .play-pause-button .bp3-button-text {
@@ -61,7 +63,7 @@
 }
 
 .settings-button-separator::before {
-	content: '' !important;
+	content: "" !important;
 	position: absolute !important;
 	left: 0 !important;
 	top: 25% !important;
@@ -73,7 +75,7 @@
 }
 
 .settings-button-separator::after {
-	content: '' !important;
+	content: "" !important;
 	position: absolute !important;
 	right: 0 !important;
 	top: 25% !important;
@@ -123,4 +125,66 @@
 .bp3-button-group .bp3-button:last-child:active {
 	border-top-right-radius: 20px !important;
 	border-bottom-right-radius: 20px !important;
+}
+
+/* Floating controls shown only while the player is in fullscreen. */
+.viewer-fullscreen-controls {
+	position: fixed;
+	top: 18px;
+	left: 18px;
+	z-index: 40;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.viewer-fullscreen-control {
+	width: 42px !important;
+	height: 42px !important;
+	min-width: 42px !important;
+	padding: 0 !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	border: 1px solid rgba(148, 163, 184, 0.22) !important;
+	border-radius: 999px !important;
+	background: rgba(15, 23, 42, 0.62) !important;
+	color: #e2e8f0 !important;
+	box-shadow:
+		0 14px 34px -16px rgba(0, 0, 0, 0.8),
+		inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+	backdrop-filter: blur(14px) saturate(140%);
+	opacity: 0.72;
+	transition:
+		background 0.18s ease,
+		border-color 0.18s ease,
+		opacity 0.18s ease,
+		transform 0.18s ease;
+}
+
+.viewer-fullscreen-control:hover,
+.viewer-fullscreen-control:focus,
+.viewer-fullscreen-control.bp6-active,
+.viewer-fullscreen-control.bp3-active {
+	opacity: 1;
+	outline: none !important;
+	border-color: rgba(99, 102, 241, 0.55) !important;
+	background: rgba(30, 41, 59, 0.88) !important;
+	transform: translateY(-1px);
+}
+
+.viewer-fullscreen-exit-icon {
+	filter: invert(100%) sepia(100%) saturate(0%) hue-rotate(127deg)
+		brightness(107%) contrast(102%);
+	transform: scale(1.35);
+}
+
+.viewer-fullscreen-popover {
+	z-index: 50;
+}
+
+.viewer-fullscreen-popover .bp6-popover-content,
+.viewer-fullscreen-popover .bp3-popover-content {
+	min-width: 230px;
+	padding: 4px;
 }

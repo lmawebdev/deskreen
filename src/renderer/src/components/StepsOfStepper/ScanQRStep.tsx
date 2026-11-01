@@ -1,23 +1,11 @@
-import {
-	Button,
-	Classes,
-	Dialog,
-	H3,
-	Position,
-	Text,
-	Tooltip,
-} from '@blueprintjs/core';
+import { Button, Dialog, Position, Text, Tooltip } from '@blueprintjs/core';
 import { createStyles, makeStyles } from '@material-ui/core';
 import { QRCodeSVG } from 'qrcode.react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Col, Row } from 'react-flexbox-grid';
 import { useTranslation } from 'react-i18next';
-import config from '../../../../common/config';
 import { IpcEvents } from '../../../../common/IpcEvents.enum';
-import isProduction from '../../../../common/isProduction';
 import Logo192 from '../../assets/logo192.png';
-
-const { hostname } = config;
 
 const useStyles = makeStyles(() =>
 	createStyles({
@@ -34,16 +22,40 @@ const useStyles = makeStyles(() =>
 				cursor: 'zoom-in',
 			},
 		},
-		dialogQRWrapper: {
-			backgroundColor: 'white',
-			padding: '20px',
-			borderRadius: '10px',
+		zoomDialog: {
+			width: 'auto !important',
+			maxWidth: '92vw',
+			padding: '0 !important',
+			border: 'none !important',
+			background: 'transparent !important',
+			boxShadow: 'none !important',
 		},
-		bigQRCodeDialogRoot: {
-			'&:hover': {
-				cursor: 'zoom-out',
-			},
-			paddingBottom: '0px',
+		zoomBody: {
+			display: 'flex',
+			flexDirection: 'column',
+			alignItems: 'center',
+			gap: '18px',
+		},
+		zoomCard: {
+			backgroundColor: '#ffffff',
+			padding: '18px',
+			borderRadius: '24px',
+			boxShadow: '0 30px 70px -30px rgba(15, 23, 42, 0.65)',
+			lineHeight: 0,
+		},
+		zoomCaption: {
+			marginTop: '12px',
+			color: '#64748b',
+			fontSize: '13px',
+			lineHeight: 1.4,
+			textAlign: 'center',
+		},
+		zoomUrlButton: {
+			borderRadius: '999px',
+			maxWidth: '92vw',
+			overflow: 'hidden',
+			textOverflow: 'ellipsis',
+			whiteSpace: 'nowrap',
 		},
 	}),
 );
@@ -57,6 +69,23 @@ const ScanQRStep: React.FC = () => {
 	const [roomID, setRoomID] = useState('');
 	const [LOCAL_LAN_IP, setLocalLanIP] = useState('');
 	const [isQRCodeMagnified, setIsQRCodeMagnified] = useState(false);
+	const [qrZoomSize, setQrZoomSize] = useState(360);
+
+	useEffect(() => {
+		if (!isQRCodeMagnified) return;
+		const updateSize = (): void => {
+			// Keep the enlarged QR inside the window: only the QR grows, never
+			// the rest of the app.
+			const available = Math.min(
+				window.innerWidth * 0.9,
+				window.innerHeight * 0.78,
+			);
+			setQrZoomSize(Math.round(Math.max(220, Math.min(540, available - 80))));
+		};
+		updateSize();
+		window.addEventListener('resize', updateSize);
+		return () => window.removeEventListener('resize', updateSize);
+	}, [isQRCodeMagnified]);
 
 	useEffect(() => {
 		window.electron.ipcRenderer
@@ -309,48 +338,47 @@ const ScanQRStep: React.FC = () => {
 			</Row>
 
 			<Dialog
-				className={classes.bigQRCodeDialogRoot}
+				className={classes.zoomDialog}
 				isOpen={isQrInteractive && isQRCodeMagnified}
 				onClose={() => setIsQRCodeMagnified(false)}
 				canEscapeKeyClose
 				canOutsideClickClose
-				transitionDuration={isProduction() ? 700 : 0}
-				style={{ position: 'relative', top: '0px' }}
-				usePortal={false}
+				transitionDuration={0}
 			>
-				<Row
-					id="qr-code-dialog-inner"
-					className={Classes.DIALOG_BODY}
-					center="xs"
-					middle="xs"
-					onClick={() => setIsQRCodeMagnified(false)}
-				>
-					<Col xs={11} className={classes.dialogQRWrapper}>
-						{/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
-						{/* @ts-ignore */}
+				<div className={classes.zoomBody}>
+					<div className={classes.zoomCard}>
 						<QRCodeSVG
-							value={isQrInteractive ? shareUrl : 'INACTIVE'}
+							value={shareUrl}
 							level="H"
+							size={qrZoomSize}
+							marginSize={2}
+							bgColor="#ffffff"
+							fgColor="#0f172a"
 							imageSettings={{
-								// src: `http://127.0.0.1${portString}/logo192.png`,
 								src: Logo192,
-								width: 25,
-								height: 25,
+								width: Math.round(qrZoomSize * 0.18),
+								height: Math.round(qrZoomSize * 0.18),
 								excavate: true,
 							}}
-							width="390px"
-							height="390px"
 						/>
-					</Col>
-					<Col>
-						<H3>
-							{isQrInteractive
-								? `${hostname}${portString}${roomPath}`
-								: t('waiting-for-connection')}
-						</H3>
-						<H3>{isQrInteractive ? shareUrl : t('waiting-for-connection')}</H3>
-					</Col>
-				</Row>
+						<div className={classes.zoomCaption}>
+							{t('scan-the-qr-code-to-connect')}
+						</div>
+					</div>
+					<Button
+						className={classes.zoomUrlButton}
+						intent="primary"
+						icon="duplicate"
+						onClick={() => {
+							window.electron.ipcRenderer.invoke(
+								IpcEvents.WriteTextToClipboard,
+								shareUrl,
+							);
+						}}
+					>
+						{shareUrl}
+					</Button>
+				</div>
 			</Dialog>
 		</>
 	);

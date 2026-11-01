@@ -2,6 +2,9 @@
 
 Changes:
 
+- fix the QR code zoom so it enlarges only the QR code (responsive to the window size) instead of overflowing the whole dialog
+- add a minimal floating control in fullscreen so the viewer can open its video settings; the panel closes when it loses focus
+- fix reconnecting a device after disconnecting it from the app: closed rooms are released immediately and stay valid after a main-window reload, so the new link connects and the approval prompt shows up again
 - allow up to 3 screen-viewing devices to connect to the same sharing session simultaneously
 - disconnect individual viewers without interrupting the others
 - keep the QR code pointing to the active sharing room for replacement viewers

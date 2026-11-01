@@ -1,39 +1,39 @@
-import React, { useEffect, useState, useCallback } from 'react';
 import {
 	Alignment,
 	Button,
 	ButtonGroup,
 	Card,
-	H5,
-	Switch,
-	Divider,
-	Text,
-	Icon,
-	Tooltip,
-	Position,
-	Popover,
 	Classes,
+	Divider,
 	H3,
+	H5,
 	HTMLSelect,
+	Icon,
+	Popover,
+	Position,
+	Switch,
+	Text,
+	Tooltip,
 } from '@blueprintjs/core';
-import screenfull from 'screenfull';
-import { useTranslation } from 'react-i18next';
-import FullScreenEnter from '../../images/fullscreen_24px.svg';
-import FullScreenExit from '../../images/fullscreen_exit-24px.svg';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Col, Row } from 'react-flexbox-grid';
-import {
-	VideoQuality,
-	type VideoQualityType,
-} from '../../features/VideoAutoQualityOptimizer/VideoQualityEnum';
-import { handlePlayerToggleFullscreen } from './handlePlayerToggleFullscreen';
-import initScreenfullOnChange from './initScreenfullOnChange';
-import { ScreenSharingSource } from '../../features/PeerConnection/ScreenSharingSourceEnum';
+import { useTranslation } from 'react-i18next';
+import screenfull from 'screenfull';
 import {
 	DEFAULT_EXTENDED_DISPLAY_SETTINGS,
 	EXTENDED_DISPLAY_BITRATE_OPTIONS,
 	EXTENDED_DISPLAY_RESOLUTION_SCALES,
 	type ExtendedDisplaySettings,
 } from '../../features/PeerConnection/ExtendedDisplaySettings';
+import { ScreenSharingSource } from '../../features/PeerConnection/ScreenSharingSourceEnum';
+import {
+	VideoQuality,
+	type VideoQualityType,
+} from '../../features/VideoAutoQualityOptimizer/VideoQualityEnum';
+import FullScreenEnter from '../../images/fullscreen_24px.svg';
+import FullScreenExit from '../../images/fullscreen_exit-24px.svg';
+import { handlePlayerToggleFullscreen } from './handlePlayerToggleFullscreen';
+import initScreenfullOnChange from './initScreenfullOnChange';
 import './index.css';
 
 const videoQualityButtonStyle: React.CSSProperties = {
@@ -74,13 +74,29 @@ function PlayerControlPanel(props: PlayerControlPanelProps) {
 	const isFullScreenAPIAvailable = screenfull.isEnabled;
 
 	const [isFullScreenOn, setIsFullScreenOn] = useState(false);
+	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 	const [extendedDisplaySettings, setExtendedDisplaySettings] =
 		useState<ExtendedDisplaySettings>(DEFAULT_EXTENDED_DISPLAY_SETTINGS);
 
 	useEffect(() => {
-		const cleanup = initScreenfullOnChange(setIsFullScreenOn);
+		const cleanup = initScreenfullOnChange((isOn) => {
+			setIsFullScreenOn(isOn);
+			if (!isOn) {
+				// Leaving fullscreen closes the floating settings panel.
+				setIsSettingsOpen(false);
+			}
+		});
 		return cleanup;
 	}, []);
+
+	useEffect(() => {
+		if (!isFullScreenOn) return;
+		// Minimalist behaviour: the floating panel hides as soon as the window
+		// (or the player) loses focus.
+		const closeSettings = () => setIsSettingsOpen(false);
+		window.addEventListener('blur', closeSettings);
+		return () => window.removeEventListener('blur', closeSettings);
+	}, [isFullScreenOn]);
 
 	const handleClickFullscreenWhenDefaultPlayerIsOn = useCallback(() => {
 		const result = handlePlayerToggleFullscreen();
@@ -129,6 +145,207 @@ function PlayerControlPanel(props: PlayerControlPanelProps) {
 		handleClickFullscreenWhenDefaultPlayerIsOn,
 		isDefaultPlayerTurnedOn,
 	]);
+
+	const settingsContent = (
+		<div
+			style={{
+				maxHeight: '60vh',
+				overflowY: 'auto',
+				padding: '8px',
+			}}
+		>
+			<H5>{`${t('Video Settings')}:`}</H5>
+			<Divider />
+			<Row
+				style={{
+					justifyContent: 'center',
+				}}
+			>
+				<Tooltip
+					content={t('flip-the-screen-is-pro-version-only')}
+					position={Position.TOP}
+				>
+					<span
+						style={{
+							display: 'block',
+							width: '100%',
+							textAlign: 'center',
+						}}
+					>
+						<Button
+							icon="key-tab"
+							minimal
+							style={videoQualityButtonStyle}
+							disabled={true}
+						>
+							{t('Flip')}
+						</Button>
+					</span>
+				</Tooltip>
+			</Row>
+			<Divider />
+			{Object.values(VideoQuality).map((q: VideoQualityType) => {
+				return (
+					<Row key={q}>
+						<Button
+							minimal
+							active={selectedVideoQuality === q}
+							style={videoQualityButtonStyle}
+							disabled={
+								screenSharingSourceType === ScreenSharingSource.WINDOW ||
+								screenSharingSourceType === ScreenSharingSource.EXTENDED
+							}
+							onClick={() => {
+								handleVideoQualitySelect(q);
+							}}
+						>
+							{q}
+						</Button>
+					</Row>
+				);
+			})}
+			{screenSharingSourceType === ScreenSharingSource.EXTENDED ? (
+				<>
+					<Divider />
+					<H5>{t('extended-display-quality')}</H5>
+					<Row style={{ marginBottom: '8px' }}>
+						<Text style={{ flex: 1 }}>{t('extended-display-fps')}</Text>
+						<HTMLSelect
+							value={extendedDisplaySettings.frameRate}
+							onChange={(event) => {
+								handleExtendedDisplaySettingsChange({
+									frameRate: Number(
+										event.currentTarget.value,
+									) as ExtendedDisplaySettings['frameRate'],
+								});
+							}}
+							options={[
+								{ value: 30, label: '30 fps' },
+								{ value: 60, label: '60 fps' },
+								{ value: 120, label: '120 fps' },
+							]}
+						/>
+					</Row>
+					<Row style={{ marginBottom: '8px' }}>
+						<Text style={{ flex: 1 }}>{t('extended-display-bitrate')}</Text>
+						<HTMLSelect
+							value={extendedDisplaySettings.bitrateMbps}
+							onChange={(event) => {
+								handleExtendedDisplaySettingsChange({
+									bitrateMbps: Number(event.currentTarget.value),
+								});
+							}}
+							options={EXTENDED_DISPLAY_BITRATE_OPTIONS.map((bitrate) => ({
+								value: bitrate,
+								label: `${bitrate} Mbps`,
+							}))}
+						/>
+					</Row>
+					<Row style={{ marginBottom: '8px' }}>
+						<Text style={{ flex: 1 }}>{t('extended-display-resolution')}</Text>
+						<HTMLSelect
+							value={extendedDisplaySettings.resolutionScale}
+							onChange={(event) => {
+								handleExtendedDisplaySettingsChange({
+									resolutionScale: Number(
+										event.currentTarget.value,
+									) as ExtendedDisplaySettings['resolutionScale'],
+								});
+							}}
+							options={EXTENDED_DISPLAY_RESOLUTION_SCALES.map((scale) => ({
+								value: scale,
+								label: `${scale}x`,
+							}))}
+						/>
+					</Row>
+					<Row style={{ marginBottom: '8px' }}>
+						<Text style={{ flex: 1 }}>{t('extended-display-priority')}</Text>
+						<HTMLSelect
+							value={extendedDisplaySettings.priority}
+							onChange={(event) => {
+								handleExtendedDisplaySettingsChange({
+									priority: event.currentTarget
+										.value as ExtendedDisplaySettings['priority'],
+								});
+							}}
+							options={[
+								{
+									value: 'quality',
+									label: t('extended-display-priority-quality'),
+								},
+								{
+									value: 'balanced',
+									label: t('extended-display-priority-balanced'),
+								},
+								{
+									value: 'latency',
+									label: t('extended-display-priority-latency'),
+								},
+							]}
+						/>
+					</Row>
+					<Text className="bp3-text-muted" style={{ fontSize: '12px' }}>
+						{t('extended-display-client-quality-note')}
+					</Text>
+				</>
+			) : null}
+		</div>
+	);
+
+	// In fullscreen only a minimal floating control is shown: the whole panel
+	// would cover the shared screen. The settings popover is rendered inline
+	// (no portal), because portaled content is not visible inside a
+	// fullscreen element.
+	if (isFullScreenOn) {
+		const settingsLabel = t('Click to Open Video Settings');
+		const exitLabel = t('Click to Exit Full Screen Mode');
+		return (
+			<div className="viewer-fullscreen-controls">
+				<Popover
+					content={settingsContent}
+					position={Position.BOTTOM_LEFT}
+					usePortal={false}
+					isOpen={isSettingsOpen}
+					onInteraction={(nextOpenState: boolean) => {
+						setIsSettingsOpen(nextOpenState);
+					}}
+					popoverClassName="viewer-fullscreen-popover"
+				>
+					<Tooltip
+						content={settingsLabel}
+						position={Position.RIGHT}
+						usePortal={false}
+					>
+						<Button
+							className="viewer-fullscreen-control"
+							active={isSettingsOpen}
+							aria-label={settingsLabel}
+							icon={<Icon icon="cog" size={18} color="#e2e8f0" />}
+						/>
+					</Tooltip>
+				</Popover>
+				<Tooltip
+					content={exitLabel}
+					position={Position.RIGHT}
+					usePortal={false}
+				>
+					<Button
+						className="viewer-fullscreen-control"
+						aria-label={exitLabel}
+						onClick={handleFullscreenClick}
+					>
+						<img
+							src={FullScreenExit}
+							width={16}
+							height={16}
+							className="viewer-fullscreen-exit-icon"
+							alt="exit-fullscreen-toggle"
+						/>
+					</Button>
+				</Tooltip>
+			</div>
+		);
+	}
 
 	return (
 		<Card elevation={4} className="viewer-control-panel">
@@ -211,176 +428,7 @@ function PlayerControlPanel(props: PlayerControlPanelProps) {
 								</Button>
 							</Tooltip>
 							<Popover
-								content={
-									<div
-										style={{
-											maxHeight: '60vh',
-											overflowY: 'auto',
-											padding: '8px',
-										}}
-									>
-										<H5>{`${t('Video Settings')}:`}</H5>
-										<Divider />
-										<Row
-											style={{
-												justifyContent: 'center',
-											}}
-										>
-											<Tooltip
-												content={t('flip-the-screen-is-pro-version-only')}
-												position={Position.TOP}
-											>
-												<span
-													style={{
-														display: 'block',
-														width: '100%',
-														textAlign: 'center',
-													}}
-												>
-													<Button
-														icon="key-tab"
-														minimal
-														style={videoQualityButtonStyle}
-														disabled={true}
-													>
-														{t('Flip')}
-													</Button>
-												</span>
-											</Tooltip>
-										</Row>
-										<Divider />
-										{Object.values(VideoQuality).map((q: VideoQualityType) => {
-											return (
-												<Row key={q}>
-													<Button
-														minimal
-														active={selectedVideoQuality === q}
-														style={videoQualityButtonStyle}
-														disabled={
-															screenSharingSourceType ===
-																ScreenSharingSource.WINDOW ||
-															screenSharingSourceType ===
-																ScreenSharingSource.EXTENDED
-														}
-														onClick={() => {
-															handleVideoQualitySelect(q);
-															// toaster?.show({
-															//   icon: 'clean',
-															//   intent: Intent.PRIMARY,
-															//   message: `${t(
-															//     'Video quality has been changed to'
-															//   )} ${q}`,
-															// });
-														}}
-													>
-														{q}
-													</Button>
-												</Row>
-											);
-										})}
-										{screenSharingSourceType ===
-										ScreenSharingSource.EXTENDED ? (
-											<>
-												<Divider />
-												<H5>{t('extended-display-quality')}</H5>
-												<Row style={{ marginBottom: '8px' }}>
-													<Text style={{ flex: 1 }}>
-														{t('extended-display-fps')}
-													</Text>
-													<HTMLSelect
-														value={extendedDisplaySettings.frameRate}
-														onChange={(event) => {
-															handleExtendedDisplaySettingsChange({
-																frameRate: Number(
-																	event.currentTarget.value,
-																) as ExtendedDisplaySettings['frameRate'],
-															});
-														}}
-														options={[
-															{ value: 30, label: '30 fps' },
-															{ value: 60, label: '60 fps' },
-															{ value: 120, label: '120 fps' },
-														]}
-													/>
-												</Row>
-												<Row style={{ marginBottom: '8px' }}>
-													<Text style={{ flex: 1 }}>
-														{t('extended-display-bitrate')}
-													</Text>
-													<HTMLSelect
-														value={extendedDisplaySettings.bitrateMbps}
-														onChange={(event) => {
-															handleExtendedDisplaySettingsChange({
-																bitrateMbps: Number(event.currentTarget.value),
-															});
-														}}
-														options={EXTENDED_DISPLAY_BITRATE_OPTIONS.map(
-															(bitrate) => ({
-																value: bitrate,
-																label: `${bitrate} Mbps`,
-															}),
-														)}
-													/>
-												</Row>
-												<Row style={{ marginBottom: '8px' }}>
-													<Text style={{ flex: 1 }}>
-														{t('extended-display-resolution')}
-													</Text>
-													<HTMLSelect
-														value={extendedDisplaySettings.resolutionScale}
-														onChange={(event) => {
-															handleExtendedDisplaySettingsChange({
-																resolutionScale: Number(
-																	event.currentTarget.value,
-																) as ExtendedDisplaySettings['resolutionScale'],
-															});
-														}}
-														options={EXTENDED_DISPLAY_RESOLUTION_SCALES.map(
-															(scale) => ({
-																value: scale,
-																label: `${scale}x`,
-															}),
-														)}
-													/>
-												</Row>
-												<Row style={{ marginBottom: '8px' }}>
-													<Text style={{ flex: 1 }}>
-														{t('extended-display-priority')}
-													</Text>
-													<HTMLSelect
-														value={extendedDisplaySettings.priority}
-														onChange={(event) => {
-															handleExtendedDisplaySettingsChange({
-																priority: event.currentTarget
-																	.value as ExtendedDisplaySettings['priority'],
-															});
-														}}
-														options={[
-															{
-																value: 'quality',
-																label: t('extended-display-priority-quality'),
-															},
-															{
-																value: 'balanced',
-																label: t('extended-display-priority-balanced'),
-															},
-															{
-																value: 'latency',
-																label: t('extended-display-priority-latency'),
-															},
-														]}
-													/>
-												</Row>
-												<Text
-													className="bp3-text-muted"
-													style={{ fontSize: '12px' }}
-												>
-													{t('extended-display-client-quality-note')}
-												</Text>
-											</>
-										) : null}
-									</div>
-								}
+								content={settingsContent}
 								position={Position.BOTTOM}
 								popoverClassName={Classes.POPOVER_CONTENT_SIZING}
 							>

@@ -1,5 +1,5 @@
 import screenfull from 'screenfull';
-import { PLAYER_WRAPPER_ID } from '../constants/appConstants';
+import { PLAYER_WRAPPER_ID, VIEWER_ROOT_ID } from '../constants/appConstants';
 
 type LegacyFullscreenElement = HTMLElement & {
 	webkitRequestFullscreen?: () => Promise<void> | void;
@@ -35,6 +35,15 @@ const fullscreenEventNames = [
 
 const getPlayerContainer = (): HTMLElement | null => {
 	return document.getElementById(PLAYER_WRAPPER_ID);
+};
+
+/**
+ * Fullscreen is requested on the whole viewer (video + overlay controls) so
+ * the floating settings button stays reachable. Portaled UI is not rendered
+ * inside a fullscreen element, which is why everything lives in this root.
+ */
+const getFullscreenTarget = (): HTMLElement | null => {
+	return document.getElementById(VIEWER_ROOT_ID) ?? getPlayerContainer();
 };
 
 const getPlayerVideo = (): IOSVideoElement | null => {
@@ -90,7 +99,7 @@ export const isPlayerFullscreen = (): boolean => {
 };
 
 export const enterPlayerFullscreen = (): boolean => {
-	const container = getPlayerContainer();
+	const container = getFullscreenTarget();
 	if (container && screenfull.isEnabled) {
 		screenfull.request(container);
 		return true;

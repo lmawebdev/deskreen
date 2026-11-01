@@ -29,9 +29,4 @@ export default function handleSelfDestroy(
 		// reset callback after destruction
 	};
 	peerConnection.hasStartedSharing = false;
-
-	window.electron.ipcRenderer.invoke(
-		IpcEvents.UnmarkRoomIDAsTaken,
-		peerConnection.roomID,
-	);
 }
